@@ -1,11 +1,10 @@
-import numpy as np
 import sys
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
 
-sys.path.insert(1, '/hexalattice/hexalattice')
+import matplotlib.pyplot as plt
+import numpy as np
+
 import hexalattice
+
 
 class BaseStation():
     def __init__(self, pos_x: float = 0, pos_y: float = 0, height: float = 10, tx_power_dB: float = 20):
@@ -23,7 +22,6 @@ class BaseStation():
                     sigpower = self.tx_power_dB
                 else:
                     sigpower = 10*np.log10(10**(self.tx_power_dB/10) * 1/(dist**2))
-                print(f'x:{idx_x}, y:{idx_x}, sig:{sigpower}')
                 signal_power[idx_x][idx_y] = sigpower
 
         return signal_power
@@ -35,37 +33,53 @@ class Grid():
         self.Ny = Ny
         self.coord_x, self.coord_y = np.meshgrid(np.arange(Nx+1), np.arange(Ny+1), sparse=False, indexing='xy')
         self.coord_x, self.coord_y = x_length*self.coord_x/Nx, y_length*self.coord_y/Ny
-        # self.coord_x = self.coord_x.reshape(-1)
-        # self.coord_y = self.coord_y.reshape(-1)
-        # self.coord_x = self.coord_x.flatten()
-        # self.coord_y = self.coord_y.flatten()
 
         if center_at_origin:
             self.coord_x = self.coord_x - x_length/2
-            self.coord_y = self.coord_y - x_length/2
+            self.coord_y = self.coord_y - y_length/2
 
         # self.coordinates = [self.coord_x, self.coord_y]
     # TODO: Plotable grid (draw lines)
 
 
 if __name__ == "__main__":
-    # Main function includes multiple examples
-    grid = Grid()
-    # print(grid.coord_x.shape, grid.coord_y.shape)
-    BS1 = BaseStation()
-    BS2 = BaseStation(pos_x=20, pos_y=20)
-    signal_power_1 = BS1.grid_signal_power(grid)
-    signal_power_2 = BS2.grid_signal_power(grid)
+    plt.ion()
+    Nx = 400
+    Ny = 400
 
-    print((grid.coord_y))
-    # print(shape(signal_power_2))
-    #
-    # print(len(signal_power_1))
-    # print(len(signal_power_2))
+    N = 3
+    d = 50
+    hex_centers, h_ax = hexalattice.create_hex_grid(nx=N, ny=N, crop_circ=N * d/2, min_diam=d, do_plot=True, h_ax=None)
+    tile_centers_x = hex_centers[:, 0]
+    tile_centers_y = hex_centers[:, 1]
+    x_lim = h_ax.get_xlim()
+    y_lim = h_ax.get_ylim()
 
-    signal_power = signal_power_1 + signal_power_2
+    grid = Grid(x_length=x_lim[1] - x_lim[0],y_length=y_lim[1] - y_lim[0], Nx=Nx, Ny=Ny)
 
-    # print(signal_power)
-    fig, ax = plt.subplots()
-    ax.pcolormesh(grid.coord_x, grid.coord_y, signal_power, shading='auto')
-    plt.show()
+    NBS = len(tile_centers_x)
+    BSs = []
+    signal_power = np.zeros([Nx, Ny, NBS])
+    total_signal_power = np.zeros([Nx, Ny])
+    for i in range(NBS):
+        BS = BaseStation(pos_x=tile_centers_x[i], pos_y=tile_centers_y[i], tx_power_dB=36)
+        signal_power[:, :, i] = BS.grid_signal_power(grid)
+        total_signal_power = total_signal_power + signal_power[:, :, i]
+        BSs.append(BS)
+
+    sinr = np.zeros([Nx, Ny, NBS])
+    noise_floor = -120
+    for i in range(NBS):
+        signal = 10**(signal_power[:, :, i]/10)
+        interference = np.ones([Nx, Ny]) * 10**(noise_floor/10)
+        for j in (np.delete(np.arange(NBS),i)):
+            interference = interference + 10**(signal_power[:, :, j]/10)
+        sinr[:, :, i] = 10*np.log10(signal / interference)
+        sinr[:, :, i] = np.clip(sinr[:, :, i], -40, 30)
+
+
+    chart = h_ax.pcolormesh(grid.coord_x, grid.coord_y, total_signal_power, shading='auto', alpha=.8, cmap='turbo')
+    # chart = h_ax.pcolormesh(grid.coord_x, grid.coord_y, sinr[:, :, 3], shading='auto', alpha=.8, cmap='turbo')
+    plt.colorbar(chart, ax=h_ax)
+
+    plt.show(block=True)
