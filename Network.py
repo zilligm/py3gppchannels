@@ -5,13 +5,12 @@ import hexalattice
 
 
 class BaseStation:
+    # Auto ID generation
     bs_id = itertools.count()
     sector_id = itertools.count()
 
     class Sector:
-        sector_id = itertools.count()
-
-        def __init__(self, bs_id, center_orientation: float = 0, sector_width: float = 120,
+        def __init__(self, bs_id: int, center_orientation: float = 0, sector_width: float = 120,
                      frequency: int = 3.5, tx_power_dB: float = 20):
             """
             Create sectors within a Base Station
@@ -28,6 +27,41 @@ class BaseStation:
             self.frequency = frequency
             self.tx_power_dB = tx_power_dB
             self.connected_UEs = []
+
+    class AntennaPanel:
+        def __init__(self, sector_id: int,
+                     n_panel_col: int = 1, n_panel_row: int = 1,
+                     panel_v_spacing: float = 0, panel_h_spacing: float = 0,
+                     n_antenna_col: int = 1, n_antenna_row: int = 1,
+                     antenna_v_spacing: float = 0, antenna_h_spacing: float = 0,
+                     polarization: str = 'single'
+                     ):
+            """
+            Create the antenna panel object. Each antenna panel contains an antenna array.
+
+            :param sector_id: sector ID associated with the antenna panel
+            :param n_panel_col: number of columns in the panel array
+            :param n_panel_row: number of rows in the panel array
+            :param panel_v_spacing: vertical spacing between panels (i.e., space between panels of two consecutive rows
+                                    in the same column) measured from the center of the panel
+            :param panel_h_spacing: horizontal spacing between panels (i.e., space between panels of two consecutive
+                                    columns in the same row) measured from the center of the panel
+            :param n_antenna_col: number of antennas columns in the antenna array (i.e., within the panel)
+            :param n_antenna_row: number of antennas rows in the antenna array (i.e., within the panel)
+            :param antenna_v_spacing: vertical spacing between antennas
+            :param antenna_h_spacing: horizontal spacing between antennas
+            :param polarization: polarization, either 'single' or 'dual'
+            """
+            self.sector_id = sector_id
+            self.n_panel_col = n_panel_col
+            self.n_panel_row = n_panel_row
+            self.panel_v_spacing = panel_v_spacing
+            self.panel_h_spacing = panel_h_spacing
+            self.n_antenna_col = n_antenna_col
+            self.n_antenna_row = n_antenna_row
+            self.antenna_v_spacing = antenna_v_spacing
+            self.antenna_h_spacing = antenna_h_spacing
+            self.polarization = polarization
 
     def __init__(self, pos_x: float = 0, pos_y: float = 0, height: float = 10, number_of_sectors: int = 3,
                  tx_power_dB: float = 20, rotation: float = 0):
@@ -52,6 +86,7 @@ class BaseStation:
             sector_width = 360 / number_of_sectors
             sector = self.Sector(bs_id=self.ID, center_orientation=center_orientation, sector_width=sector_width,
                                  tx_power_dB=self.tx_power_dB)
+            print(f'Base Station {self.ID} - Sector {sector.ID}')
             self.sector.append(sector)
 
 
@@ -88,54 +123,6 @@ class UserEquipment:
         self.neighbor_cells = []
         self.noise_floor = noise_floor  # dB
 
-    # def compute_pathloss(self, base_stations: list[BaseStation]):
-    #     self.pathloss = []
-    #
-    #     for bs_idx, bs in enumerate(base_stations):
-    #         dist = ((bs.pos_x - self.pos_x) ** 2 + (bs.pos_y - self.pos_y) ** 2) ** 0.5
-    #         if dist == 0:
-    #             power = 10 ** (bs.tx_power_dB / 10)
-    #         else:
-    #             power = 10 ** (bs.tx_power_dB / 10) * 1 / (dist ** 2)  # TODO: Implement PATHLOSS formula
-    #
-    #         if base_stations[bs_idx].ID == self.serving_cell:
-    #             self.serving_cell_power = power
-    #         else:
-    #             self.interference_power = self.interference_power + power
-    #     self.sinr = 10 * np.log10(self.serving_cell_power / self.interference_power)
-
-    # def attach(self, base_stations: list[BaseStation]):
-    #     rsrp = np.zeros(len(base_stations))
-    #     for bs_idx, bs in enumerate(base_stations):
-    #         dist = ((bs.pos_x - self.pos_x) ** 2 + (bs.pos_y - self.pos_y) ** 2) ** 0.5
-    #         if dist == 0:
-    #             rsrp[bs_idx] = bs.tx_power_dB
-    #         else:
-    #             rsrp[bs_idx] = 10 * np.log10(
-    #                 10 ** (bs.tx_power_dB / 10) * 1 / (dist ** 2))  # TODO: Implement PATHLOSS formula
-    #     # Find serving cell
-    #     serving_idx = np.argmax(rsrp)
-    #     self.serving_cell = base_stations[serving_idx].ID
-    #
-    # def compute_sinr(self, base_stations: list[BaseStation]):
-    #     self.serving_cell_power = 0
-    #     self.interference_power = 10 ** (self.noise_floor / 10)
-    #
-    #     for bs_idx, bs in enumerate(base_stations):
-    #         dist = ((bs.pos_x - self.pos_x) ** 2 + (bs.pos_y - self.pos_y) ** 2) ** 0.5
-    #         if dist == 0:
-    #             power = 10 ** (bs.tx_power_dB / 10)
-    #         else:
-    #             power = 10 ** (bs.tx_power_dB / 10) * 1 / (dist ** 2)  # TODO: Implement PATHLOSS formula
-    #
-    #         if base_stations[bs_idx].ID == self.serving_cell:
-    #             self.serving_cell_power = power
-    #         else:
-    #             self.interference_power = self.interference_power + power
-    #     self.sinr = 10 * np.log10(self.serving_cell_power / self.interference_power)
-    #
-    # # TODO: Handover method: select new cell, detach from current cell, attach to new cell
-
 
 class Network:
     def __init__(self, scenario: str = 'UMa', free_space: bool = False):
@@ -151,6 +138,7 @@ class Network:
         self.scenario = scenario
 
         self.pathlossMatrix = [[]]
+        self.shadowFadingMatrix = [[]]
         self.losMatrix = [[]]
         self.RsrpMatrix = np.array([])
         self.SinrMatrix = np.array([])
@@ -202,7 +190,7 @@ class Network:
             self.average_street_width = 20.0  # meters [5..50]
 
         # TODO: Implement other scenarios:  Indoor Factory (InF) - (InF-SL, InF-DL, InF-SH, InF-DH, InF-HH)
-        #                                   Indoor Office
+        #                                   Indoor Office/Hotspot (InH)
 
     def LineOfSight(self, bs: BaseStation, ue: UserEquipment):
         """
@@ -495,7 +483,7 @@ class Network:
         else:
             pathloss = np.inf
 
-        return pathloss
+        return pathloss, sigma_sf
 
     def NetworkPathlossAndLos(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
         """
@@ -508,17 +496,981 @@ class Network:
         nUE = len(UE_list)
         nSectors = nBS * self.number_of_sectors
         self.pathlossMatrix = np.zeros((nUE, nSectors))
+        self.shadowFadingMatrix = np.zeros((nUE, nSectors))
         self.losMatrix = [[None] * nSectors] * nUE
-        for bs_ind, bs in enumerate(BS_list):
-            for sec_ind, sec in enumerate(bs.sector):
-                for eu_ind, ue in enumerate(UE_list):
-                    ue.los = self.LineOfSight(bs=bs, ue=ue)
-                    self.losMatrix[ue.ID][sec.ID] = ue.los
-                    self.pathlossMatrix[ue.ID][sec.ID] = self.Pathloss(bs=bs, sec=sec, ue=ue)
+        for eu_ind, ue in enumerate(UE_list):
+            for bs_ind, bs in enumerate(BS_list):
+                # LOS/NLOS is determined for each BS and UE pair
+                ue.los = self.LineOfSight(bs=bs, ue=ue)
+                self.losMatrix[ue.ID][bs.ID] = ue.los
+                for sec_ind, sec in enumerate(bs.sector):
+                    # Pathloss is determined for each Sector and UE pair
+                    pathloss, sigma_sf = self.Pathloss(bs=bs, sec=sec, ue=ue)
+                    self.pathlossMatrix[ue.ID][sec.ID] = pathloss
+                    self.shadowFadingMatrix[ue.ID][sec.ID] = sigma_sf
 
         # with np.printoptions(precision=1, suppress=True):
         #     print(self.pathlossMatrix)
         # print(self.losMatrix)
+
+    def generateLargeScaleParams_link(self, bs: BaseStation, sec: BaseStation.Sector, ue: UserEquipment):
+
+        # Large Scale Parameters (LSP) for different BS-UE links are uncorrelated, but the LSPs for links from co-sited
+        # sectors to a UE are the same. In addition, LSPs for the links of UEs on different floors are uncorrelated.
+
+        fc = 3.5 # GHz  # Todo: figure if get from sector since LSPs should be the same for all sectors within a BS
+
+        if self.scenario == 'UMi':
+            # Frequency correction - see NOTE 7 from Table 7.5-6
+            if fc < 2.0:
+                fc = 2.0
+
+            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -0.24 * np.log10(1+fc) - 7.14
+                sigma_lg_DS = 0.38
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = -0.05 * np.log10(1 + fc) + 1.21
+                sigma_lg_ASD = 0.41
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = -0.08 * np.log10(1 + fc) + 1.73
+                sigma_lg_ASA = 0.014 * np.log10(1 + fc) + 0.28
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = -0.1 * np.log10(1 + fc) + 0.73
+                sigma_lg_ZSA = -0.04 * np.log10(1 + fc) + 0.34
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = 9
+                sigma_K = 5
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.5
+                ASA_vs_DS = 0.8
+                ASA_vs_SF = -0.4
+                ASD_vs_SF = -0.5
+                DS_vs_FS = -0.4
+                ASD_vs_ASA = 0.4
+                ASD_vs_K = -0.2
+                ASA_vs_K = -0.3
+                DS_vs_K = -0.7
+                SF_vs_K = 0.5
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = 0.0
+                ZSD_vs_K = 0.0
+                ZSA_vs_K = 0.0
+                ZSD_vs_DS = 0.0
+                ZSA_vs_DS = 0.2
+                ZSD_vs_ASD = 0.5
+                ZSA_vs_ASD = 0.3
+                ZSD_vs_ASA = 0.0
+                ZSA_vs_ASA = 0.0
+                ZSD_vs_ZSA = 0.0
+
+                # Delay Scaling Parameter
+                r_tau = 3
+
+                # XPR [dB]
+                mu_XPR = 9
+                sigma_xpr = 3
+
+                # Number of clusters
+                N = 12
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = 5
+
+                # Cluster ASD [deg]
+                c_ASD = 3
+
+                # Cluster ASA [deg]
+                c_ASA = 17
+
+                # Cluster ZSA [deg]
+                c_ZSA = 7
+
+                # Per cluster shadowing std [dB]
+                xi = 7
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 7
+                corr_dist_h_plane_ASD = 8
+                corr_dist_h_plane_ASA = 8
+                corr_dist_h_plane_SF = 10
+                corr_dist_h_plane_K = 15
+                corr_dist_h_plane_ZSA = 12
+                corr_dist_h_plane_ZSD = 12
+
+            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -0.24 * np.log10(1 + fc) - 6.83
+                sigma_lg_DS = 0.16 * np.log10(1 + fc) + 0.28
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = -0.23 * np.log10(1 + fc) + 1.53
+                sigma_lg_ASD = 0.11 * np.log10(1 + fc) + 0.33
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = -0.08 * np.log10(1 + fc) + 1.81
+                sigma_lg_ASA = 0.05 * np.log10(1 + fc) + 0.3
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = -0.04 * np.log10(1 + fc) + 0.92
+                sigma_lg_ZSA = -0.07 * np.log10(1 + fc) + 0.41
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = None
+                sigma_K = None
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.0
+                ASA_vs_DS = 0.4
+                ASA_vs_SF = -0.4
+                ASD_vs_SF = 0.0
+                DS_vs_SF = -0.7
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = None
+                ASA_vs_K = None
+                DS_vs_K = None
+                SF_vs_K = None
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = 0.0
+                ZSD_vs_K = None
+                ZSA_vs_K = None
+                ZSD_vs_DS = -0.5
+                ZSA_vs_DS = 0.0
+                ZSD_vs_ASD = 0.5
+                ZSA_vs_ASD = 0.5
+                ZSD_vs_ASA = 0.0
+                ZSA_vs_ASA = 0.2
+                ZSD_vs_ZSA = 0.0
+
+                # Delay Scaling Parameter
+                r_tau = 2.1
+
+                # XPR [dB]
+                mu_XPR = 8.0
+                sigma_xpr = 3
+
+                # Number of clusters
+                N = 19
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = 11
+
+                # Cluster ASD [deg]
+                c_ASD = 10
+
+                # Cluster ASA [deg]
+                c_ASA = 22
+
+                # Cluster ZSA [deg]
+                c_ZSA = 7
+
+                # Per cluster shadowing std [dB]
+                xi = 7
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 10
+                corr_dist_h_plane_ASD = 10
+                corr_dist_h_plane_ASA = 9
+                corr_dist_h_plane_SF = 13
+                corr_dist_h_plane_K = None
+                corr_dist_h_plane_ZSA = 10
+                corr_dist_h_plane_ZSD = 10
+
+            if self.losMatrix[ue.ID][bs.ID] == 'O2I':
+                # Delay Spread (DS)
+                mu_lg_DS = -6.62
+                sigma_lg_DS = 0.32
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 1.25
+                sigma_lg_ASD = 0.42
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.76
+                sigma_lg_ASA = 0.16
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 1.01
+                sigma_lg_ZSA = 0.43
+
+                # Shadow Fading (SF) [dB]
+                sigma_SF = 7
+
+                # K Factor (K) [dB]
+                mu_K = None
+                sigma_K = None
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.4
+                ASA_vs_DS = 0.4
+                ASA_vs_SF = 0
+                ASD_vs_SF = 0.2
+                DS_vs_SF = -0.5
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = None
+                ASA_vs_K = None
+                DS_vs_K = None
+                SF_vs_K = None
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = 0.0
+                ZSD_vs_K = None
+                ZSA_vs_K = None
+                ZSD_vs_DS = -0.6
+                ZSA_vs_DS = -0.2
+                ZSD_vs_ASD = -0.2
+                ZSA_vs_ASD = 0.0
+                ZSD_vs_ASA = 0.0
+                ZSA_vs_ASA = 0.5
+                ZSD_vs_ZSA = 0.5
+
+                # Delay Scaling Parameter
+                r_tau = 2.2
+
+                # XPR [dB]
+                mu_XPR = 9.0
+                sigma_xpr = 5
+
+                # Number of clusters
+                N = 12
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = 11
+
+                # Cluster ASD [deg]
+                c_ASD = 5
+
+                # Cluster ASA [deg]
+                c_ASA = 8
+
+                # Cluster ZSA [deg]
+                c_ZSA = 3
+
+                # Per cluster shadowing std [dB]
+                xi = 4
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 10
+                corr_dist_h_plane_ASD = 11
+                corr_dist_h_plane_ASA = 17
+                corr_dist_h_plane_SF = 7
+                corr_dist_h_plane_K = None
+                corr_dist_h_plane_ZSA = 25
+                corr_dist_h_plane_ZSD = 25
+
+        if self.scenario == 'UMa':
+            # Frequency correction - see NOTE 6 from Table 7.5-6 Part-1
+            if fc < 6.0:
+                fc = 6.0
+
+            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -6.955 - 0.0963 * np.log10(fc)
+                sigma_lg_DS = 0.66
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 1.06 + 0.1114 * np.log10(fc)
+                sigma_lg_ASD = 0.28
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.81
+                sigma_lg_ASA = 0.20
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 0.95
+                sigma_lg_ZSA = 0.16
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = 9
+                sigma_K = 3.5
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.4
+                ASA_vs_DS = 0.8
+                ASA_vs_SF = -0.5
+                ASD_vs_SF = -0.5
+                DS_vs_FS = -0.4
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = 0.0
+                ASA_vs_K = -0.2
+                DS_vs_K = -0.4
+                SF_vs_K = 0.0
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = -0.8
+                ZSD_vs_K = 0.0
+                ZSA_vs_K = 0.0
+                ZSD_vs_DS = -0.2
+                ZSA_vs_DS = 0.0
+                ZSD_vs_ASD = 0.5
+                ZSA_vs_ASD = 0.0
+                ZSD_vs_ASA = -0.3
+                ZSA_vs_ASA = 0.4
+                ZSD_vs_ZSA = 0.0
+
+                # Delay Scaling Parameter
+                r_tau = 2.5
+
+                # XPR [dB]
+                mu_XPR = 8
+                sigma_xpr = 4
+
+                # Number of clusters
+                N = 12
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = max(0.25, 6.5622 - 3.4084 * np.log10(fc))
+
+                # Cluster ASD [deg]
+                c_ASD = 5
+
+                # Cluster ASA [deg]
+                c_ASA = 11
+
+                # Cluster ZSA [deg]
+                c_ZSA = 7
+
+                # Per cluster shadowing std [dB]
+                xi = 3
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 30
+                corr_dist_h_plane_ASD = 18
+                corr_dist_h_plane_ASA = 15
+                corr_dist_h_plane_SF = 37
+                corr_dist_h_plane_K = 12
+                corr_dist_h_plane_ZSA = 15
+                corr_dist_h_plane_ZSD = 15
+
+            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -6.28 - 0.204 * np.log10(fc)
+                sigma_lg_DS = 0.39
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 1.5 - 0.1144 * np.log10(fc)
+                sigma_lg_ASD = 0.28
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.5 - 0.1144 * np.log10(fc)
+                sigma_lg_ASA = 0.20
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 0.95
+                sigma_lg_ZSA = 0.16
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = 9
+                sigma_K = 3.5
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.4
+                ASA_vs_DS = 0.8
+                ASA_vs_SF = -0.5
+                ASD_vs_SF = -0.5
+                DS_vs_FS = -0.4
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = 0.0
+                ASA_vs_K = -0.2
+                DS_vs_K = -0.4
+                SF_vs_K = 0.0
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = -0.8
+                ZSD_vs_K = 0.0
+                ZSA_vs_K = 0.0
+                ZSD_vs_DS = -0.2
+                ZSA_vs_DS = 0.0
+                ZSD_vs_ASD = 0.5
+                ZSA_vs_ASD = 0.0
+                ZSD_vs_ASA = -0.3
+                ZSA_vs_ASA = 0.4
+                ZSD_vs_ZSA = 0.0
+
+                # Delay Scaling Parameter
+                r_tau = 2.5
+
+                # XPR [dB]
+                mu_XPR = 8
+                sigma_xpr = 4
+
+                # Number of clusters
+                N = 12
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = max(0.25, 6.5622 - 3.4084 * np.log10(fc))
+
+                # Cluster ASD [deg]
+                c_ASD = 5
+
+                # Cluster ASA [deg]
+                c_ASA = 11
+
+                # Cluster ZSA [deg]
+                c_ZSA = 7
+
+                # Per cluster shadowing std [dB]
+                xi = 3
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 30
+                corr_dist_h_plane_ASD = 18
+                corr_dist_h_plane_ASA = 15
+                corr_dist_h_plane_SF = 37
+                corr_dist_h_plane_K = 12
+                corr_dist_h_plane_ZSA = 15
+                corr_dist_h_plane_ZSD = 15
+
+            if self.losMatrix[ue.ID][bs.ID] == 'O2I':
+                # Delay Spread (DS)
+                mu_lg_DS = -6.62
+                sigma_lg_DS = 0.32
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 1.25
+                sigma_lg_ASD = 0.42
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.76
+                sigma_lg_ASA = 0.16
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 1.01
+                sigma_lg_ZSA = 0.43
+
+                # Shadow Fading (SF) [dB]
+                sigma_SF = 7
+
+                # K Factor (K) [dB]
+                mu_K = None
+                sigma_K = None
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.4
+                ASA_vs_DS = 0.4
+                ASA_vs_SF = 0
+                ASD_vs_SF = 0.2
+                DS_vs_SF = -0.5
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = None
+                ASA_vs_K = None
+                DS_vs_K = None
+                SF_vs_K = None
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = 0.0
+                ZSD_vs_K = None
+                ZSA_vs_K = None
+                ZSD_vs_DS = -0.6
+                ZSA_vs_DS = -0.2
+                ZSD_vs_ASD = -0.2
+                ZSA_vs_ASD = 0.0
+                ZSD_vs_ASA = 0.0
+                ZSA_vs_ASA = 0.5
+                ZSD_vs_ZSA = 0.5
+
+                # Delay Scaling Parameter
+                r_tau = 2.2
+
+                # XPR [dB]
+                mu_XPR = 9.0
+                sigma_xpr = 5
+
+                # Number of clusters
+                N = 12
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = 11
+
+                # Cluster ASD [deg]
+                c_ASD = 5
+
+                # Cluster ASA [deg]
+                c_ASA = 8
+
+                # Cluster ZSA [deg]
+                c_ZSA = 3
+
+                # Per cluster shadowing std [dB]
+                xi = 4
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 10
+                corr_dist_h_plane_ASD = 11
+                corr_dist_h_plane_ASA = 17
+                corr_dist_h_plane_SF = 7
+                corr_dist_h_plane_K = None
+                corr_dist_h_plane_ZSA = 25
+                corr_dist_h_plane_ZSD = 25
+
+        if self.scenario == 'RMa':
+            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -7.49
+                sigma_lg_DS = 0.55
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 0.90
+                sigma_lg_ASD = 0.38
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.52
+                sigma_lg_ASA = 0.24
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 0.47
+                sigma_lg_ZSA = 0.40
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = 7
+                sigma_K = 4
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.0
+                ASA_vs_DS = 0.0
+                ASA_vs_SF = 0.0
+                ASD_vs_SF = 0.0
+                DS_vs_FS = -0.5
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = 0.0
+                ASA_vs_K = 0.0
+                DS_vs_K = 0.0
+                SF_vs_K = 0.0
+
+                ZSD_vs_SF = 0.01
+                ZSA_vs_SF = -0.17
+                ZSD_vs_K = 0.0
+                ZSA_vs_K = -0.02
+                ZSD_vs_DS = -0.05
+                ZSA_vs_DS = 0.27
+                ZSD_vs_ASD = 0.73
+                ZSA_vs_ASD = -0.14
+                ZSD_vs_ASA = -0.20
+                ZSA_vs_ASA = 0.24
+                ZSD_vs_ZSA = -0.07
+
+                # Delay Scaling Parameter
+                r_tau = 3.8
+
+                # XPR [dB]
+                mu_XPR = 12
+                sigma_xpr = 4
+
+                # Number of clusters
+                N = 11
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = None
+
+                # Cluster ASD [deg]
+                c_ASD = 2
+
+                # Cluster ASA [deg]
+                c_ASA = 3
+
+                # Cluster ZSA [deg]
+                c_ZSA = 3
+
+                # Per cluster shadowing std [dB]
+                xi = 3
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 50
+                corr_dist_h_plane_ASD = 25
+                corr_dist_h_plane_ASA = 35
+                corr_dist_h_plane_SF = 37
+                corr_dist_h_plane_K = 40
+                corr_dist_h_plane_ZSA = 15
+                corr_dist_h_plane_ZSD = 15
+
+            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -7.43
+                sigma_lg_DS = 0.48
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 0.95
+                sigma_lg_ASD = 0.45
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.52
+                sigma_lg_ASA = 0.13
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 0.58
+                sigma_lg_ZSA = 0.37
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = None
+                sigma_K = None
+
+                # Cross-Correlations
+                ASD_vs_DS = -0.4
+                ASA_vs_DS = 0.0
+                ASA_vs_SF = 0.0
+                ASD_vs_SF = 0.6
+                DS_vs_FS = -0.5
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = None
+                ASA_vs_K = None
+                DS_vs_K = None
+                SF_vs_K = None
+
+                ZSD_vs_SF = -0.04
+                ZSA_vs_SF = -0.25
+                ZSD_vs_K = None
+                ZSA_vs_K = None
+                ZSD_vs_DS = -0.10
+                ZSA_vs_DS = -0.40
+                ZSD_vs_ASD = 0.42
+                ZSA_vs_ASD = -0.27
+                ZSD_vs_ASA = -0.18
+                ZSA_vs_ASA = 0.26
+                ZSD_vs_ZSA = -0.27
+
+                # Delay Scaling Parameter
+                r_tau = 1.7
+
+                # XPR [dB]
+                mu_XPR = 7
+                sigma_xpr = 3
+
+                # Number of clusters
+                N = 10
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = None
+
+                # Cluster ASD [deg]
+                c_ASD = 2
+
+                # Cluster ASA [deg]
+                c_ASA = 3
+
+                # Cluster ZSA [deg]
+                c_ZSA = 3
+
+                # Per cluster shadowing std [dB]
+                xi = 3
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 36
+                corr_dist_h_plane_ASD = 30
+                corr_dist_h_plane_ASA = 40
+                corr_dist_h_plane_SF = 120
+                corr_dist_h_plane_K = None
+                corr_dist_h_plane_ZSA = 50
+                corr_dist_h_plane_ZSD = 50
+
+            if self.losMatrix[ue.ID][bs.ID] == 'O2I':
+                # Delay Spread (DS)
+                mu_lg_DS = -7.47
+                sigma_lg_DS = 0.24
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 0.67
+                sigma_lg_ASD = 0.18
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = 1.66
+                sigma_lg_ASA = 0.21
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = 0.93
+                sigma_lg_ZSA = 0.22
+
+                # Shadow Fading (SF) [dB]
+                sigma_SF = 8
+
+                # K Factor (K) [dB]
+                mu_K = None
+                sigma_K = None
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.0
+                ASA_vs_DS = 0.0
+                ASA_vs_SF = 0.0
+                ASD_vs_SF = 0.0
+                DS_vs_FS = 0.0
+                ASD_vs_ASA = -0.7
+                ASD_vs_K = None
+                ASA_vs_K = None
+                DS_vs_K = None
+                SF_vs_K = None
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = 0.0
+                ZSD_vs_K = None
+                ZSA_vs_K = None
+                ZSD_vs_DS = 0.0
+                ZSA_vs_DS = 0.0
+                ZSD_vs_ASD = 0.66
+                ZSA_vs_ASD = 0.47
+                ZSD_vs_ASA = -0.55
+                ZSA_vs_ASA = -0.22
+                ZSD_vs_ZSA = 0.0
+
+                # Delay Scaling Parameter
+                r_tau = 1.7
+
+                # XPR [dB]
+                mu_XPR = 7
+                sigma_xpr = 3
+
+                # Number of clusters
+                N = 10
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = None
+
+                # Cluster ASD [deg]
+                c_ASD = 2
+
+                # Cluster ASA [deg]
+                c_ASA = 3
+
+                # Cluster ZSA [deg]
+                c_ZSA = 3
+
+                # Per cluster shadowing std [dB]
+                xi = 3
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 36
+                corr_dist_h_plane_ASD = 30
+                corr_dist_h_plane_ASA = 40
+                corr_dist_h_plane_SF = 120
+                corr_dist_h_plane_K = None
+                corr_dist_h_plane_ZSA = 50
+                corr_dist_h_plane_ZSD = 50
+
+        if self.scenario == 'InH':
+            # Frequency correction - see NOTE 6 from Table 7.5-6 Part-2
+            if fc < 6.0:
+                fc = 6.0
+
+            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -0.01 * np.log10(1+fc) - 7.692
+                sigma_lg_DS = 0.18
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 1.60
+                sigma_lg_ASD = 0.18
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = -0.19 * np.log10(1+fc) + 1.781
+                sigma_lg_ASA = 0.12 * np.log10(1+fc) + 0.119
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = -0.26 * np.log10(1+fc) + 1.44
+                sigma_lg_ZSA = -0.04 * np.log10(1+fc) + 0.264
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = 7
+                sigma_K = 4
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.6
+                ASA_vs_DS = 0.8
+                ASA_vs_SF = -0.5
+                ASD_vs_SF = -0.4
+                DS_vs_FS = -0.8
+                ASD_vs_ASA = 0.4
+                ASD_vs_K = 0.0
+                ASA_vs_K = 0.0
+                DS_vs_K = -0.5
+                SF_vs_K = 0.5
+
+                ZSD_vs_SF = 0.2
+                ZSA_vs_SF = 0.3
+                ZSD_vs_K = 0.0
+                ZSA_vs_K = 0.1
+                ZSD_vs_DS = 0.1
+                ZSA_vs_DS = 0.2
+                ZSD_vs_ASD = 0.5
+                ZSA_vs_ASD = 0.0
+                ZSD_vs_ASA = 0.0
+                ZSA_vs_ASA = 0.5
+                ZSD_vs_ZSA = 0.0
+
+                # Delay Scaling Parameter
+                r_tau = 3.6
+
+                # XPR [dB]
+                mu_XPR = 11
+                sigma_xpr = 4
+
+                # Number of clusters
+                N = 15
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = None
+
+                # Cluster ASD [deg]
+                c_ASD = 5
+
+                # Cluster ASA [deg]
+                c_ASA = 8
+
+                # Cluster ZSA [deg]
+                c_ZSA = 9
+
+                # Per cluster shadowing std [dB]
+                xi = 6
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 8
+                corr_dist_h_plane_ASD = 7
+                corr_dist_h_plane_ASA = 5
+                corr_dist_h_plane_SF = 10
+                corr_dist_h_plane_K = 4
+                corr_dist_h_plane_ZSA = 4
+                corr_dist_h_plane_ZSD = 4
+
+            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+                # Delay Spread (DS)
+                mu_lg_DS = -0.28 * np.log10(1 + fc) - 7.173
+                sigma_lg_DS = 0.10 * np.log10(1 + fc) + 0.055
+
+                # AOD Spread (ASD)
+                mu_lg_ASD = 1.62
+                sigma_lg_ASD = 0.25
+
+                # AOA Spread (ASA)
+                mu_lg_ASA = -0.11 * np.log10(1 + fc) + 1.863
+                sigma_lg_ASA = 0.12 * np.log10(1 + fc) + 0.059
+
+                # ZOA Spread (ZSA)
+                mu_lg_ZSA = -0.15 * np.log10(1 + fc) + 1.287
+                sigma_lg_ZSA = -0.09 * np.log10(1 + fc) + 0.746
+
+                # Shadow Fading (SF) [dB]
+                # Todo: See Table 7.4.1-1
+
+                # K Factor (K) [dB]
+                mu_K = None
+                sigma_K = None
+
+                # Cross-Correlations
+                ASD_vs_DS = 0.4
+                ASA_vs_DS = 0.0
+                ASA_vs_SF = -0.4
+                ASD_vs_SF = 0.0
+                DS_vs_FS = -0.5
+                ASD_vs_ASA = 0.0
+                ASD_vs_K = None
+                ASA_vs_K = None
+                DS_vs_K = None
+                SF_vs_K = None
+
+                ZSD_vs_SF = 0.0
+                ZSA_vs_SF = 0.0
+                ZSD_vs_K = None
+                ZSA_vs_K = None
+                ZSD_vs_DS = -0.27
+                ZSA_vs_DS = -0.06
+                ZSD_vs_ASD = 0.35
+                ZSA_vs_ASD = 0.23
+                ZSD_vs_ASA = -0.08
+                ZSA_vs_ASA = 0.43
+                ZSD_vs_ZSA = 0.42
+
+                # Delay Scaling Parameter
+                r_tau = 3.0
+
+                # XPR [dB]
+                mu_XPR = 10
+                sigma_xpr = 4
+
+                # Number of clusters
+                N = 19
+
+                # Number of rays per cluster
+                M = 20
+
+                # Cluster DS [ns]
+                c_DS = None
+
+                # Cluster ASD [deg]
+                c_ASD = 5
+
+                # Cluster ASA [deg]
+                c_ASA = 11
+
+                # Cluster ZSA [deg]
+                c_ZSA = 9
+
+                # Per cluster shadowing std [dB]
+                xi = 3
+
+                # Correlation distance in the horizontal plane [m]
+                corr_dist_h_plane_DS = 5
+                corr_dist_h_plane_ASD = 3
+                corr_dist_h_plane_ASA = 3
+                corr_dist_h_plane_SF = 6
+                corr_dist_h_plane_K = None
+                corr_dist_h_plane_ZSA = 4
+                corr_dist_h_plane_ZSD = 4
+
 
     def computeRSRP(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
         """
