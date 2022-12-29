@@ -473,7 +473,7 @@ class Network:
         # For now, I'm doing simple sectorization
         ue_centered_position = np.array([(ue.pos_x - bs.pos_x) / dist_2D, (ue.pos_y - bs.pos_y) / dist_2D])
         sector_center = np.array(
-            [-np.sin(np.deg2rad(sec.center_orientation)), np.cos(np.deg2rad(sec.center_orientation))])
+            [np.cos(np.deg2rad(sec.center_orientation)), np.sin(np.deg2rad(sec.center_orientation))])
         angle = np.dot(ue_centered_position, sector_center) / (
                 np.linalg.norm(ue_centered_position) * np.linalg.norm(sector_center))
         angle = np.arccos(angle)
@@ -518,7 +518,7 @@ class Network:
         # Large Scale Parameters (LSP) for different BS-UE links are uncorrelated, but the LSPs for links from co-sited
         # sectors to a UE are the same. In addition, LSPs for the links of UEs on different floors are uncorrelated.
 
-        fc = 3.5 # GHz  # Todo: figure if get from sector since LSPs should be the same for all sectors within a BS
+        fc = 3.5    # GHz  # Todo: figure if get from sector since LSPs should be the same for all sectors within a BS
 
         if self.scenario == 'UMi':
             # Frequency correction - see NOTE 7 from Table 7.5-6
@@ -1472,6 +1472,141 @@ class Network:
                 corr_dist_h_plane_ZSD = 4
 
 
+        # TODO: Generate parametes using procedure described in clause 3.3.1 of the Winner Channel Model document
+        # Generate DS
+        DS = 0.0
+
+        # Generate ASA
+        ASA = 0.0
+        ASA = min(ASA, 104.0)
+
+        # Generate ASD
+        ASD = 0.0
+        ASD = min(ASD, 104.0)
+
+        # Generate ZSA
+        ZSA = 0.0
+        ZSA = min(ZSA, 52.0)
+
+        # Generate ZSD
+        ZSD = 0.0
+        ZSD = min(ZSD, 52.0)
+
+        # Generate K
+        K = 0.0
+
+        # Generate SF
+        SF = 0.0
+
+
+        LSP = {'mu_lg_DS': mu_lg_DS, 'sigma_lg_DS': sigma_lg_DS, 'mu_lg_ASD': mu_lg_ASD, 'sigma_lg_ASD': sigma_lg_ASD,
+               'mu_lg_ASA': mu_lg_ASA, 'sigma_lg_ASA': sigma_lg_ASA, 'mu_lg_ZSA': mu_lg_ZSA,
+               'sigma_lg_ZSA': sigma_lg_ZSA, 'sigma_SF': sigma_SF, 'mu_K': mu_K, 'sigma_K': sigma_K,
+               'ASD_vs_DS': ASD_vs_DS, 'ASA_vs_DS': ASA_vs_DS, 'ASA_vs_SF': ASA_vs_SF, 'ASD_vs_SF': ASD_vs_SF,
+               'DS_vs_FS': DS_vs_FS, 'ASD_vs_ASA': ASD_vs_ASA, 'ASD_vs_K': ASD_vs_K, 'ASA_vs_K': ASA_vs_K,
+               'DS_vs_K': DS_vs_K, 'SF_vs_K': SF_vs_K, 'ZSD_vs_SF': ZSD_vs_SF, 'ZSA_vs_SF': ZSA_vs_SF,
+               'ZSD_vs_K': ZSD_vs_K, 'ZSA_vs_K': ZSA_vs_K, 'ZSD_vs_DS': ZSD_vs_DS, 'ZSA_vs_DS': ZSA_vs_DS,
+               'ZSD_vs_ASD': ZSD_vs_ASD, 'ZSA_vs_ASD': ZSA_vs_ASD, 'ZSD_vs_ASA': ZSD_vs_ASA, 'ZSA_vs_ASA': ZSA_vs_ASA,
+               'ZSD_vs_ZSA': ZSD_vs_ZSA, 'r_tau': r_tau, 'mu_XPR': mu_XPR, 'sigma_xpr': sigma_xpr, 'N': N, 'M': M,
+               'c_DS': c_DS, 'c_ASD': c_ASD, 'c_ASA': c_ASA, 'c_ZSA': c_ZSA, 'xi': xi,
+               'corr_dist_h_plane_DS': corr_dist_h_plane_DS, 'corr_dist_h_plane_ASD': corr_dist_h_plane_ASD,
+               'corr_dist_h_plane_ASA': corr_dist_h_plane_ASA, 'corr_dist_h_plane_SF': corr_dist_h_plane_SF,
+               'corr_dist_h_plane_K': corr_dist_h_plane_K, 'corr_dist_h_plane_ZSA': corr_dist_h_plane_ZSA,
+               'corr_dist_h_plane_ZSD': corr_dist_h_plane_ZSD,
+               'DS': DS, 'ASA': ASA, 'ASD': ASD, 'ZSA': ZSA, 'ZSD': ZSD, 'K': K, 'SF': SF
+               }
+        return LSP
+
+    def generateSmallScaleParams_link(self, bs: BaseStation, sec: BaseStation.Sector, ue: UserEquipment, lsp: dict):
+        # Small Scale Parameter generation
+
+        ################################################################################################################
+        # Step 5: Generate cluster delays Tau_n:
+        Xn = np.random.uniform(size=lsp['N'])
+        cluster_delay = - lsp['r_tau'] * lsp['DS'] * np.log(Xn)
+        cluster_delay = np.sort(cluster_delay - min(cluster_delay))
+
+        if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            C_tau = 0.7705 - 0.0433 * lsp['K'] + 0.0002 * (lsp['K'] ** 2) + 0.000017 * (lsp['K'] ** 3)
+            cluster_delay_LOS = cluster_delay/C_tau
+
+        ################################################################################################################
+        # Step 6: Generate cluster powers P_n:
+        P_n_notch = np.exp(-cluster_delay * ((lsp['r_tau'] - 1)/(lsp['r_tau'] * lsp['DS'])))
+        P_n_notch = P_n_notch * (10 ** (- np.random.normal(loc=0.0, scale=lsp['xi']) / 10))
+        P_n = P_n_notch/sum(P_n_notch)
+
+        if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            K_R_linear = 10 ** (lsp['K']/10)
+            P_n = (1 / (K_R_linear + 1)) * P_n
+            P_n[0] = P_n[0] + (K_R_linear / (K_R_linear + 1))
+
+        # Discard clusters with power less than -25 dB compared to the maximum cluster power
+        P_n_dB = 10 * np.log10(P_n)
+        P_n_dB = P_n_dB[P_n_dB >= max(P_n_dB) - 25]
+        P_n = P_n[P_n_dB >= max(P_n_dB) - 25]
+
+        # Power per ray
+        P_n_ray = P_n/lsp['M']
+
+        updated_N_cluster = len(P_n)
+
+        ################################################################################################################
+        # Step 7: Generate arrival angles and departure angles for both azimuth and elevation
+        if updated_N_cluster == 4:
+            C_phi_NLOS = 0.779
+        elif updated_N_cluster == 5:
+            C_phi_NLOS = 0.860
+        elif updated_N_cluster == 6:    # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 0.913
+        elif updated_N_cluster == 7:    # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 0.965
+        elif updated_N_cluster == 8:
+            C_phi_NLOS = 1.018
+        elif updated_N_cluster == 9:    # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.054
+        elif updated_N_cluster == 10:
+            C_phi_NLOS = 1.090
+        elif updated_N_cluster == 11:
+            C_phi_NLOS = 1.123
+        elif updated_N_cluster == 12:
+            C_phi_NLOS = 1.146
+        elif updated_N_cluster == 13:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.168
+        elif updated_N_cluster == 14:
+            C_phi_NLOS = 1.190
+        elif updated_N_cluster == 15:
+            C_phi_NLOS = 1.211
+        elif updated_N_cluster == 16:
+            C_phi_NLOS = 1.226
+        elif updated_N_cluster == 17:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.242
+        elif updated_N_cluster == 18:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.257
+        elif updated_N_cluster == 19:
+            C_phi_NLOS = 1.273
+        elif updated_N_cluster == 20:
+            C_phi_NLOS = 1.289
+        elif updated_N_cluster == 21:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.303
+        elif updated_N_cluster == 22:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.317
+        elif updated_N_cluster == 23:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.330
+        elif updated_N_cluster == 24:  # Not in the standard - obtained from linear interpolation
+            C_phi_NLOS = 1.344
+        elif updated_N_cluster == 25:
+            C_phi_NLOS = 1.358
+        else:
+            raise "Invalid number of clusters"
+
+        if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            C_phi = C_phi_NLOS * (1.1035 - 0.028 * lsp['K'] - 0.002 * (lsp['K'] ** 2) + 0.0001 * (lsp['K'] ** 3))
+        else:
+            C_phi = C_phi_NLOS
+
+
+
     def computeRSRP(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
         """
         Compute the RSRP
@@ -1557,7 +1692,7 @@ class Grid:
 
 
 if __name__ == "__main__":
-    network = Network(scenario='UMa', free_space=False)
+    network = Network(scenario='UMa', free_space=True)
 
     plt.ion()
     fig, (h_ax, ax2) = plt.subplots(1, 2)
@@ -1567,7 +1702,7 @@ if __name__ == "__main__":
     N = 5
     d = network.ISD
     hex_centers, h_ax = hexalattice.create_hex_grid(nx=N, ny=N, crop_circ=N * d / 2, min_diam=d, do_plot=True,
-                                                    h_ax=h_ax)
+                                                    h_ax=h_ax,rotate_deg=30)
     tile_centers_x = hex_centers[:, 0]
     tile_centers_y = hex_centers[:, 1]
     x_lim = h_ax.get_xlim()
@@ -1588,7 +1723,7 @@ if __name__ == "__main__":
         BSs.append(BS)
 
     # Initialize User Equipment
-    NUE = 300
+    NUE = 1000
     UEs = []
 
     for i in range(NUE):
