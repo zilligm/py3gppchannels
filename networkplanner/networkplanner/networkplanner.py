@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import itertools
 import hexalattice
-
+from typing import List, Union
 
 class BaseStation:
     # Auto ID generation
@@ -80,6 +80,7 @@ class BaseStation:
         self.height = height
         self.tx_power_dB = tx_power_dB
         self.sector = []
+        self.number_of_sectors = number_of_sectors
         for sec in range(number_of_sectors):
             center_orientation = rotation + sec * 360 / number_of_sectors
             sector_width = 360 / number_of_sectors
@@ -114,7 +115,7 @@ class UserEquipment:
         self.pos_y = pos_y
         self.height = height
         self.location = location
-        self.los = los
+        # self.los = los
         self.tx_power_dB = tx_power_dB
         self.serving_sector = None
         self.serving_base_station = None
@@ -128,7 +129,9 @@ class UserEquipment:
 
 
 class Network:
-    def __init__(self, scenario: str = 'UMa', free_space: bool = False):
+    def __init__(self, scenario: str = 'UMa', free_space: bool = False,
+                 BSs:  Union[List[BaseStation], BaseStation] = [],
+                 UEs:  Union[List[UserEquipment], UserEquipment] = []):
         """
         Create the Network
         :param scenario: indicates the scenario:    'UMa' -> Urban Macro
@@ -140,11 +143,26 @@ class Network:
         self.free_space = free_space
         self.scenario = scenario
 
+        self.BSs = BSs
+        self.BS_tx_power_dB = 32
+        self.BS_noise_floor_dB = -125
+
+        self.UEs = UEs
+        self.UE_tx_power_dB = 18
+        self.UE_noise_floor_dB = -125
+
         self.pathlossMatrix = [[]]
         self.shadowFadingMatrix = [[]]
-        self.losMatrix = [[]]
-        self.RsrpMatrix = np.array([])
-        self.SinrMatrix = np.array([])
+        self.RSRP_Matrix = np.array([])
+        self.SINR_Matrix = np.array([])
+        self.DL_SINR_Matrix = np.array([])
+        self.UL_SINR_Matrix = np.array([])
+
+        self.los_Matrix = []
+        self.los_azi_angle_rad_Matrix = []
+        self.los_zen_angle_rad_Matrix = []
+        self.dist2D_Matrix = []
+        self.dist3D_Matrix = []
 
         if self.scenario == 'UMi':
             self.layout = 'Hexagonal'
@@ -195,9 +213,48 @@ class Network:
         # TODO: Implement other scenarios:  Indoor Factory (InF) - (InF-SL, InF-DL, InF-SH, InF-DH, InF-HH)
         #                                   Indoor Office/Hotspot (InH)
 
+    def add_ue(self, pos_x: float = 0, pos_y: float = 0, height: float = None, location: str = None,
+               tx_power_dB: float = None, noise_floor: float = None):
+
+        if height is None:
+            height = self.UE_height
+        if location is None:
+            location = self.UELocation()
+        if tx_power_dB is None:
+            tx_power_dB = self.UE_tx_power_dB
+        if noise_floor is None:
+            noise_floor = self.UE_noise_floor_dB
+
+        self.UEs.append(UserEquipment(pos_x=pos_x,
+                                      pos_y=pos_y,
+                                      tx_power_dB=tx_power_dB,
+                                      height=height,
+                                      location=location,
+                                      noise_floor=noise_floor))
+
+    def add_bs(self, pos_x: float = 0, pos_y: float = 0, height: float = None, number_of_sectors: int = None,
+               tx_power_dB: float = None, rotation: float = None):
+        if height is None:
+            height = self.BS_height
+        if number_of_sectors is None:
+            number_of_sectors = self.number_of_sectors
+        if tx_power_dB is None:
+            tx_power_dB = self.BS_tx_power_dB
+        if rotation is None:
+            rotation = 0
+
+        self.BSs.append(BaseStation(pos_x=pos_x,
+                                    pos_y=pos_y,
+                                    tx_power_dB=tx_power_dB,
+                                    height=height,
+                                    number_of_sectors=number_of_sectors,
+                                    rotation=rotation))
+
     def LineOfSight(self, bs: BaseStation, ue: UserEquipment):
         """
         Determine if a given BS and UE pair is in 'LOS' or 'NLOS'
+        0: 'LOS'        1: 'NLOS'       2: 'IOF'
+
         :param bs: BaseStation object
         :type bs: object BaseStation
         :param ue: UserEquipment object
@@ -236,9 +293,11 @@ class Network:
                 Pr_LOS = (18 / dist_2D) + np.exp(-dist_2D / 36) * (1 - 18 / dist_2D)
 
         if np.random.random() < Pr_LOS:
-            return 'LOS'
+            # return 'LOS'
+            return 0
         else:
-            return 'NLOS'
+            # return 'NLOS'
+            return 1
 
     def UELocation(self):
         """
@@ -257,14 +316,16 @@ class Network:
             else:
                 return 'Car'
 
-    def computeDistAndLosAngles(self, bs_list: list[BaseStation], ue_list: list[UserEquipment]):
-        for ue in ue_list:
-            ue.dist2D = np.zeros(len(bs_list))
-            ue.dist3D = np.zeros(len(bs_list))
-            ue.los_azi_angle_rad = np.zeros(len(bs_list))
-            ue.los_zen_angle_rad = np.zeros(len(bs_list))
+    def computeGeometry(self):
+        nUE = len(self.UEs)
+        nBS = len(self.BSs)
+        self.los_azi_angle_rad_Matrix = np.zeros((nUE, nBS), dtype=float)
+        self.los_zen_angle_rad_Matrix = np.zeros((nUE, nBS), dtype=float)
+        self.dist2D_Matrix = np.zeros((nUE, nBS), dtype=float)
+        self.dist3D_Matrix = np.zeros((nUE, nBS), dtype=float)
 
-            for bs in bs_list:
+        for ue in self.UEs:
+            for bs in self.BSs:
                 # Compute 2D distance between UE and BS
                 dist_2D = ((bs.pos_x - ue.pos_x) ** 2 + (bs.pos_y - ue.pos_y) ** 2) ** 0.5
                 dist_3D = (dist_2D ** 2 + (bs.height - ue.height) ** 2) ** 0.5
@@ -283,10 +344,16 @@ class Network:
                 elif h_e < 0:
                     ze_angle_rad = - np.arctan(dist_2D / h_e)
 
-                ue.dist2D[bs.ID] = dist_2D
-                ue.dist3D[bs.ID] = dist_3D
-                ue.los_azi_angle_rad[bs.ID] = az_angle_rad
-                ue.los_zen_angle_rad[bs.ID] = ze_angle_rad
+                self.dist2D_Matrix[ue.ID][bs.ID] = dist_2D
+                self.dist3D_Matrix[ue.ID][bs.ID] = dist_3D
+                self.los_azi_angle_rad_Matrix[ue.ID][bs.ID] = az_angle_rad
+                self.los_zen_angle_rad_Matrix[ue.ID][bs.ID] = ze_angle_rad
+
+    def computeLOS(self):
+        self.los_Matrix = np.zeros((len(self.UEs), len(self.BSs)), dtype=int)
+        for ue in self.UEs:
+            for bs in self.BSs:
+                self.los_Matrix[ue.ID][bs.ID] = self.LineOfSight(bs, ue)
 
     def Pathloss(self, bs: BaseStation, sec: BaseStation.Sector, ue: UserEquipment):
         """
@@ -299,8 +366,9 @@ class Network:
         :type ue: object UserEquipment
         :return: Pathloss [dB]
         """
-        dist_2D = ue.dist2D[bs.ID]
-        dist_3D = ue.dist3D[bs.ID]
+        dist_2D = self.dist2D_Matrix[ue.ID][bs.ID]
+        dist_3D = self.dist3D_Matrix[ue.ID][bs.ID]
+        los = 'LOS' if self.los_Matrix[ue.ID][bs.ID] else 'NLOS'
         fc = sec.frequency
         c = 300000000  # meters/s
         pathloss = 0
@@ -322,7 +390,7 @@ class Network:
 
                 d_bp = 2 * np.pi * bs.height * ue.height * fc / c
 
-                if ue.los == 'LOS':
+                if los == 'LOS':
                     # Compute PL_RMa-LOS
                     if (10 <= dist_2D) and (dist_2D <= d_bp):
                         pathloss = 20 * np.log10(40 * np.pi * dist_3D * fc / 3) \
@@ -343,7 +411,7 @@ class Network:
                         # sigma_sf = 6
                         raise 'Invalid range for UE-BS distance'
 
-                if ue.los == 'NLOS':
+                if los == 'NLOS':
                     # Compute PL_RMa-LOS
                     if (10 <= dist_2D) and (dist_2D <= d_bp):
                         PL_RMa_LOS = 20 * np.log10(40 * np.pi * dist_3D * fc / 3) \
@@ -400,7 +468,7 @@ class Network:
                 d_bp = 2 * np.pi * bs.height * ue.height * fc / c
 
                 # Pathloss computation for LOS
-                if ue.los == 'LOS':
+                if los == 'LOS':
                     # Compute PL_UMa-LOS
                     if (10 <= dist_2D) and (dist_2D <= d_bp):
                         pathloss = 28.0 + 22 * np.log10(dist_3D) + 20 * np.log10(fc)
@@ -413,7 +481,7 @@ class Network:
                         raise 'Invalid range for UE-BS distance'
 
                 # Pathloss computation for NLOS
-                if ue.los == 'NLOS':
+                if los == 'NLOS':
                     # Compute PL_UMa-LOS
                     if (10 <= dist_2D) and (dist_2D <= d_bp):
                         PL_UMa_LOS = 28.0 + 22 * np.log10(dist_3D) + 20 * np.log10(fc)
@@ -449,7 +517,7 @@ class Network:
                 d_bp = 4 * (bs.height - h_e) * (ue.height - h_e) * fc / c
 
                 # Pathloss computation for LOS
-                if ue.los == 'LOS':
+                if los == 'LOS':
                     # Compute PL_UMi-LOS
                     if (10 <= dist_2D) and (dist_2D <= d_bp):
                         pathloss = 32.4 + 21 * np.log10(dist_3D) + 20 * np.log10(fc)
@@ -462,7 +530,7 @@ class Network:
                         raise 'Invalid range for UE-BS distance'
 
                 # Pathloss computation for NLOS
-                if ue.los == 'NLOS':
+                if los == 'NLOS':
 
                     # Compute PL_UMi-LOS
                     if (10 <= dist_2D) and (dist_2D <= d_bp):
@@ -505,31 +573,34 @@ class Network:
         # Sectorization
         # Todo: incorporate AoA/AoD
         # For now, I'm doing simple sectorization
-        if np.abs(ue.los_azi_angle_rad[bs.ID] - np.deg2rad(sec.center_orientation)) <= (np.deg2rad(sec.sector_width / 2)):
+        if np.abs(self.los_azi_angle_rad_Matrix[ue.ID][bs.ID] - np.deg2rad(sec.center_orientation)) <= (np.deg2rad(sec.sector_width / 2)):
             pathloss = pathloss
         else:
             pathloss = np.inf
 
         return pathloss, sigma_sf
 
-    def NetworkPathlossAndLos(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
+    def NetworkPathloss(self, BS_list: list[BaseStation] = None, UE_list: list[UserEquipment] = None):
         """
         Computes the Pathloss and Line of Sight parameters for combinations of BSs and UEs
         :param BS_list: list of BSs
         :param UE_list: lsit of UEs
         :return: update Network attributes losMatrix and pathlossMatrix
         """
+        if BS_list is None:
+            BS_list = self.BSs
+
+        if UE_list is None:
+            UE_list = self.UEs
+
         nBS = len(BS_list)
         nUE = len(UE_list)
         nSectors = nBS * self.number_of_sectors
         self.pathlossMatrix = np.zeros((nUE, nSectors))
         self.shadowFadingMatrix = np.zeros((nUE, nSectors))
-        self.losMatrix = [[None] * nSectors] * nUE
         for eu_ind, ue in enumerate(UE_list):
             for bs_ind, bs in enumerate(BS_list):
                 # LOS/NLOS is determined for each BS and UE pair
-                ue.los = self.LineOfSight(bs=bs, ue=ue)
-                self.losMatrix[ue.ID][bs.ID] = ue.los
                 for sec_ind, sec in enumerate(bs.sector):
                     # Pathloss is determined for each Sector and UE pair
                     pathloss, sigma_sf = self.Pathloss(bs=bs, sec=sec, ue=ue)
@@ -538,7 +609,6 @@ class Network:
 
         # with np.printoptions(precision=1, suppress=True):
         #     print(self.pathlossMatrix)
-        # print(self.losMatrix)
 
     def computeSmallScaleParameters(self, bs_list: list[BaseStation], ue_list: list[UserEquipment]):
         for ue in ue_list:
@@ -547,20 +617,20 @@ class Network:
                 LSP = self.generateLargeScaleParams_link(bs, sec, ue)
                 # self.generateSmallScaleParams_link(bs, sec, ue, LSP)
 
-
     def generateLargeScaleParams_link(self, bs: BaseStation, sec: BaseStation.Sector, ue: UserEquipment):
 
         # Large Scale Parameters (LSP) for different BS-UE links are uncorrelated, but the LSPs for links from co-sited
         # sectors to a UE are the same. In addition, LSPs for the links of UEs on different floors are uncorrelated.
 
         fc = 3.5    # GHz  # Todo: figure if get from sector since LSPs should be the same for all sectors within a BS
+        los = self.getLOS(self.los_Matrix[ue.ID][bs.ID])
 
         if self.scenario == 'UMi':
             # Frequency correction - see NOTE 7 from Table 7.5-6
             if fc < 2.0:
                 fc = 2.0
 
-            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            if los == 'LOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -0.24 * np.log10(1+fc) - 7.14
                 sigma_lg_DS = 0.38
@@ -645,7 +715,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 12
                 corr_dist_h_plane_ZSD = 12
 
-            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+            if los == 'NLOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -0.24 * np.log10(1 + fc) - 6.83
                 sigma_lg_DS = 0.16 * np.log10(1 + fc) + 0.28
@@ -730,7 +800,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 10
                 corr_dist_h_plane_ZSD = 10
 
-            if self.losMatrix[ue.ID][bs.ID] == 'O2I':
+            if los == 'O2I':
                 # Delay Spread (DS)
                 mu_lg_DS = -6.62
                 sigma_lg_DS = 0.32
@@ -820,7 +890,7 @@ class Network:
             if fc < 6.0:
                 fc = 6.0
 
-            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            if los == 'LOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -6.955 - 0.0963 * np.log10(fc)
                 sigma_lg_DS = 0.66
@@ -905,7 +975,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 15
                 corr_dist_h_plane_ZSD = 15
 
-            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+            if los == 'NLOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -6.28 - 0.204 * np.log10(fc)
                 sigma_lg_DS = 0.39
@@ -990,7 +1060,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 15
                 corr_dist_h_plane_ZSD = 15
 
-            if self.losMatrix[ue.ID][bs.ID] == 'O2I':
+            if los == 'O2I':
                 # Delay Spread (DS)
                 mu_lg_DS = -6.62
                 sigma_lg_DS = 0.32
@@ -1076,7 +1146,7 @@ class Network:
                 corr_dist_h_plane_ZSD = 25
 
         if self.scenario == 'RMa':
-            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            if los == 'LOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -7.49
                 sigma_lg_DS = 0.55
@@ -1162,7 +1232,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 15
                 corr_dist_h_plane_ZSD = 15
 
-            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+            if los == 'NLOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -7.43
                 sigma_lg_DS = 0.48
@@ -1247,7 +1317,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 50
                 corr_dist_h_plane_ZSD = 50
 
-            if self.losMatrix[ue.ID][bs.ID] == 'O2I':
+            if los == 'O2I':
                 # Delay Spread (DS)
                 mu_lg_DS = -7.47
                 sigma_lg_DS = 0.24
@@ -1337,7 +1407,7 @@ class Network:
             if fc < 6.0:
                 fc = 6.0
 
-            if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+            if los == 'LOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -0.01 * np.log10(1+fc) - 7.692
                 sigma_lg_DS = 0.18
@@ -1422,7 +1492,7 @@ class Network:
                 corr_dist_h_plane_ZSA = 4
                 corr_dist_h_plane_ZSD = 4
 
-            if self.losMatrix[ue.ID][bs.ID] == 'NLOS':
+            if los == 'NLOS':
                 # Delay Spread (DS)
                 mu_lg_DS = -0.28 * np.log10(1 + fc) - 7.173
                 sigma_lg_DS = 0.10 * np.log10(1 + fc) + 0.055
@@ -1562,7 +1632,7 @@ class Network:
         cluster_delay = - lsp['r_tau'] * lsp['DS'] * np.log(Xn)
         cluster_delay = np.sort(cluster_delay - min(cluster_delay))
 
-        if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+        if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
             C_tau = 0.7705 - 0.0433 * lsp['K'] + 0.0002 * (lsp['K'] ** 2) + 0.000017 * (lsp['K'] ** 3)
             cluster_delay_LOS = cluster_delay/C_tau
 
@@ -1572,7 +1642,7 @@ class Network:
         P_n_notch = P_n_notch * (10 ** (- np.random.normal(loc=0.0, scale=lsp['xi']) / 10))
         P_n = P_n_notch/sum(P_n_notch)
 
-        if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+        if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
             K_R_linear = 10 ** (lsp['K']/10)
             P_n = (1 / (K_R_linear + 1)) * P_n
             P_n[0] = P_n[0] + (K_R_linear / (K_R_linear + 1))
@@ -1636,49 +1706,63 @@ class Network:
         else:
             raise "Invalid number of clusters"
 
-        if self.losMatrix[ue.ID][bs.ID] == 'LOS':
+        if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
             C_phi = C_phi_NLOS * (1.1035 - 0.028 * lsp['K'] - 0.002 * (lsp['K'] ** 2) + 0.0001 * (lsp['K'] ** 3))
         else:
             C_phi = C_phi_NLOS
 
         print(f'C_phi:{C_phi}')
 
-    def computeRSRP(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
+    def computeRSRP(self, BS_list: list[BaseStation] = None, UE_list: list[UserEquipment] = None):
         """
         Compute the RSRP
         :param BS_list: list of BaseStation
         :param UE_list: list of UserEquipment
         :return: update Network attribute RsrpMatrix
         """
+
+        if BS_list is None:
+            BS_list = self.BSs
+
+        if UE_list is None:
+            UE_list = self.UEs
+
         nBS = len(BS_list)
         nUE = len(UE_list)
         nSectors = nBS * self.number_of_sectors
-        self.RsrpMatrix = np.zeros((nUE, nSectors))
-        for bs_ind, bs in enumerate(BS_list):
-            for sec_ind, sec in enumerate(bs.sector):
-                for eu_ind, ue in enumerate(UE_list):
-                    self.RsrpMatrix[ue.ID][sec.ID] = sec.tx_power_dB - self.pathlossMatrix[ue.ID][sec.ID]
-        # with np.printoptions(precision=1, suppress=True):
-        #     print(self.RsrpMatrix)
+        self.RSRP_Matrix = np.zeros((nUE, nSectors))
+        for bs in BS_list:
+            for sec in bs.sector:
+                for ue in UE_list:
+                    self.RSRP_Matrix[ue.ID][sec.ID] = sec.tx_power_dB - self.pathlossMatrix[ue.ID][sec.ID]
 
-    def UE_attach(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
+        # with np.printoptions(precision=1, suppress=True):
+        #     print(self.RSRP_Matrix)
+
+    def UE_attach(self, BS_list: list[BaseStation] = None, UE_list: list[UserEquipment] = None):
         """
         Performs UE attachment -> finds the sector for which UE senses the highest RSRP and 'connect' to them
         :param BS_list:
         :param UE_list:
         :return: updates attributes 'serving_sector' and 'serving_base_station' of the UserEquipment object
         """
+        if BS_list is None:
+            BS_list = self.BSs
+
+        if UE_list is None:
+            UE_list = self.UEs
+
         self.computeRSRP(BS_list=BS_list, UE_list=UE_list)
         for eu_ind, ue in enumerate(UE_list):
-            highestRSRP_sectorIndex = np.argmax(self.RsrpMatrix[eu_ind][:])
+            highestRSRP_sectorIndex = np.argmax(self.RSRP_Matrix[eu_ind][:])
             ue.serving_sector = highestRSRP_sectorIndex
             ue.serving_base_station = self.cellSectorMap[highestRSRP_sectorIndex]
 
             # with np.printoptions(precision=1, suppress=True):
-            #     print(f'UE:{eu_ind} - RSRP:{self.RsrpMatrix[eu_ind][:]}')
-            #     print(f'UE:{eu_ind} - RSRP:{self.RsrpMatrix[eu_ind][highestRSRP_sectorIndex]}')
+            #     print(f'UE:{eu_ind} - RSRP:{self.RSRP_Matrix[eu_ind][:]}')
+            #     print(f'UE:{eu_ind} - RSRP:{self.RSRP_Matrix[eu_ind][highestRSRP_sectorIndex]}')
 
-    def computeSINR(self, BS_list: list[BaseStation], UE_list: list[UserEquipment]):
+    def computeSINR(self, BS_list: list[BaseStation] = None, UE_list: list[UserEquipment] = None):
         """
         Computes the SINR for the UEs in the UE list; it assumes that the desired signal is received from the serving
         sector and the interference is received for all other sectors.
@@ -1686,20 +1770,29 @@ class Network:
         :param UE_list: list of UserEquipment
         :return:
         """
+        if BS_list is None:
+            BS_list = self.BSs
+
+        if UE_list is None:
+            UE_list = self.UEs
+
         nBS = len(BS_list)
         nUE = len(UE_list)
-        nSectors = nBS * self.number_of_sectors
-        self.SinrMatrix = np.zeros(nUE)
-        for eu_ind, ue in enumerate(UE_list):
-            signal_power_dB = self.RsrpMatrix[ue.ID][ue.serving_sector]
+        nSectors = sum([bs.number_of_sectors for bs in BS_list])
+        SEC_list = [sec.ID for bs in BS_list for sec in bs.sector]
+
+        self.SINR_Matrix = np.zeros(nUE)
+        for ue in UE_list:
+            signal_power_dB = self.RSRP_Matrix[ue.ID][ue.serving_sector]
             interference_plus_noise = 10 ** (ue.noise_floor / 10)
-            for sec_idx in (np.delete(np.arange(nSectors), ue.serving_sector)):
-                interference_plus_noise = interference_plus_noise + 10 ** (self.RsrpMatrix[ue.ID][sec_idx] / 10)
+            for sec_idx in (np.delete(np.array(SEC_list), ue.serving_sector)):
+                interference_plus_noise = interference_plus_noise + 10 ** (self.RSRP_Matrix[ue.ID][sec_idx] / 10)
             interference_plus_noise_dB = 10 * np.log10(interference_plus_noise)
-            self.SinrMatrix[ue.ID] = signal_power_dB - interference_plus_noise_dB
+            self.SINR_Matrix[ue.ID] = signal_power_dB - interference_plus_noise_dB
 
             # with np.printoptions(precision=1, suppress=True):
-            #     print(f'UE:{eu_ind} - SINR:{self.SinrMatrix[ue.ID]}')
+            #     print(f'UE:{eu_ind} - SINR:{self.SINR_Matrix[ue.ID]}')
+
 
     def cell_sector_mapping(self, BS_list: list[BaseStation]):
         nBS = len(BS_list)
@@ -1709,6 +1802,15 @@ class Network:
         for bs in BS_list:
             for sec in bs.sector:
                 self.cellSectorMap[sec.ID] = bs.ID
+
+    @staticmethod
+    def getLOS(los):
+        if los == 0:
+            return 'LOS'
+        if los == 1:
+            return 'NLOS'
+        if los == 2:
+            return 'O2I'
 
 
 class Grid:
