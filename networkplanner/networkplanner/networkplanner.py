@@ -74,7 +74,6 @@ class BaseStation:
         :param tx_power_dB: transmission power [dBm]
         :param rotation: offset to the Base Station' sector orientation
         """
-        self.network = network
         self.ID = next(BaseStation.bs_id)
         self.pos_x = pos_x
         self.pos_y = pos_y
@@ -110,7 +109,6 @@ class UserEquipment:
         :param tx_power_dB: transmission power [dBm]
         :param noise_floor: noise floor [dBm]
         """
-        self.network = network
         self.ID = next(UserEquipment.id_iter)
         self.pos_x = pos_x
         self.pos_y = pos_y
@@ -1727,78 +1725,3 @@ class Grid:
 
         self.coordinates = [self.coord_x, self.coord_y]
     # TODO: Plotable grid (draw lines)
-
-
-if __name__ == "__main__":
-    network = Network(scenario='UMa', free_space=True)
-
-    plt.ion()
-    fig, (h_ax, ax2) = plt.subplots(1, 2)
-    Nx = 200
-    Ny = 200
-
-    N = 5 # result in 19 cells
-    N = 3
-    d = network.ISD
-    hex_centers, h_ax = hexalattice.create_hex_grid(nx=N, ny=N, crop_circ=N * d / 2, min_diam=d, do_plot=True,
-                                                    h_ax=h_ax, rotate_deg=30)
-    tile_centers_x = hex_centers[:, 0]
-    tile_centers_y = hex_centers[:, 1]
-    x_lim = h_ax.get_xlim()
-    y_lim = h_ax.get_ylim()
-
-    UE_x_lim = (min(tile_centers_x) - d / 2, max(tile_centers_x) + d / 2)
-    UE_y_lim = (min(tile_centers_y) - d / 2, max(tile_centers_y) + d / 2)
-    print(UE_x_lim, UE_y_lim)
-
-    grid = Grid(x_length=x_lim[1] - x_lim[0], y_length=y_lim[1] - y_lim[0], Nx=Nx, Ny=Ny)
-
-    # Initialize Base Stations
-    NBS = len(tile_centers_x)
-    BSs = []
-    for i in range(NBS):
-        BS = BaseStation(pos_x=tile_centers_x[i], pos_y=tile_centers_y[i], tx_power_dB=23, height=network.BS_height,
-                         number_of_sectors=network.number_of_sectors)
-        BSs.append(BS)
-
-    # Initialize User Equipment
-    NUE = 200
-    UEs = []
-
-    for i in range(NUE):
-        pos_xx = np.random.uniform(low=UE_x_lim[0], high=UE_x_lim[1], size=None)
-        pos_yy = np.random.uniform(low=UE_y_lim[0], high=UE_y_lim[1], size=None)
-        UE = UserEquipment(pos_x=pos_xx, pos_y=pos_yy, height=network.UE_height, tx_power_dB=18, noise_floor=-126)
-        UE.location = network.UELocation()  # Indoor/Outdoor
-        UEs.append(UE)
-
-    # Compute LOS and Pathloss for all UEs/BS/Sector
-    network.cell_sector_mapping(BSs)
-    network.computeDistAndLosAngles(BSs, UEs)
-    network.NetworkPathlossAndLos(BSs, UEs)
-    network.computeSmallScaleParameters(BSs, UEs)
-    network.computeRSRP(BSs, UEs)
-    network.UE_attach(BSs, UEs)
-    network.computeSINR(BSs, UEs)
-
-    color = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink']
-    marker = ['.', 'x', '+']
-    for bs in BSs:
-        h_ax.scatter(bs.pos_x, bs.pos_y,
-                     color=color[int(bs.ID % 7)],
-                     marker='^')
-    for ue in UEs:
-        h_ax.scatter(ue.pos_x, ue.pos_y,
-                     color=color[int(ue.serving_base_station % 7)],
-                     marker=marker[int(ue.serving_sector % 3)], alpha=0.5)
-
-    # ax2.hist(network.SinrMatrix, range=[np.floor(min(network.SinrMatrix)) - 1, np.ceil(max(network.SinrMatrix)) + 1],
-    #          bins=np.arange(int(np.floor(min(network.SinrMatrix))), int(np.ceil(max(network.SinrMatrix))), 1))
-
-    SinrMatrix = np.clip(network.SinrMatrix, -60, 60)
-    ax2.hist(SinrMatrix, range=[np.floor(min(SinrMatrix)) - 1, np.ceil(max(SinrMatrix)) + 1])
-
-    # chart = h_ax.pcolormesh(grid.coord_x, grid.coord_y, total_signal_power, shading='auto', alpha=.8, cmap='turbo')
-    # plt.colorbar(chart, ax=h_ax)
-
-    plt.show(block=True)
