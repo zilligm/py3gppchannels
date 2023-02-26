@@ -2856,22 +2856,23 @@ class Network:
 
         ################################################################################################################
         # Step 5: Generate cluster delays Tau_n:
-        Xn = np.random.uniform(size=lsp['N'])
-        cluster_delay = - lsp['r_tau'] * lsp['DS'] * np.log(Xn)
+        Xn = np.random.uniform(size=ue.LSP[bs.ID]['N'])
+        cluster_delay = - ue.LSP[bs.ID]['r_tau'] * ue.LSP[bs.ID]['DS'] * np.log(Xn)
         cluster_delay = np.sort(cluster_delay - min(cluster_delay))
 
         if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
-            C_tau = 0.7705 - 0.0433 * lsp['K'] + 0.0002 * (lsp['K'] ** 2) + 0.000017 * (lsp['K'] ** 3)
+            C_tau = 0.7705 - 0.0433 * ue.LSP[bs.ID]['K'] + 0.0002 * (ue.LSP[bs.ID]['K'] ** 2) + 0.000017 * (ue.LSP[bs.ID]['K'] ** 3)
             cluster_delay_LOS = cluster_delay/C_tau
 
         ################################################################################################################
         # Step 6: Generate cluster powers P_n:
-        P_n_notch = np.exp(-cluster_delay * ((lsp['r_tau'] - 1)/(lsp['r_tau'] * lsp['DS'])))
-        P_n_notch = P_n_notch * (10 ** (- np.random.normal(loc=0.0, scale=lsp['xi']) / 10))
-        P_n = P_n_notch/sum(P_n_notch)
+        P_n_notch = np.exp(-cluster_delay * ((ue.LSP[bs.ID]['r_tau'] - 1)/(ue.LSP[bs.ID]['r_tau'] * ue.LSP[bs.ID]['DS'])))
+        P_n_notch = P_n_notch * (10 ** (- np.random.normal(loc=0.0, scale=ue.LSP[bs.ID]['xi']) / 10))
+
+        P_n = P_n_notch / sum(P_n_notch)
 
         if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
-            K_R_linear = 10 ** (lsp['K']/10)
+            K_R_linear = 10 ** (ue.LSP[bs.ID]['K']/10)
             P_n = (1 / (K_R_linear + 1)) * P_n
             P_n[0] = P_n[0] + (K_R_linear / (K_R_linear + 1))
 
@@ -2881,12 +2882,16 @@ class Network:
         P_n = P_n[P_n_dB >= max(P_n_dB) - 25]
 
         # Power per ray
-        P_n_ray = P_n/lsp['M']
+        P_n_ray = P_n/ue.LSP[bs.ID]['M']
 
         updated_N_cluster = len(P_n)
 
         ################################################################################################################
         # Step 7: Generate arrival angles and departure angles for both azimuth and elevation
+        # Todo: Check standard (perhaps instead of using updated_N_cluster I should use the M and M only has a finite
+        #  set of values, so I wouldn't need the interpolation below)
+
+        # Azimuth
         if updated_N_cluster == 4:
             C_phi_NLOS = 0.779
         elif updated_N_cluster == 5:
@@ -2935,11 +2940,152 @@ class Network:
             raise "Invalid number of clusters"
 
         if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
-            C_phi = C_phi_NLOS * (1.1035 - 0.028 * lsp['K'] - 0.002 * (lsp['K'] ** 2) + 0.0001 * (lsp['K'] ** 3))
+            C_phi = C_phi_NLOS * (1.1035 - 0.028 * ue.LSP[bs.ID]['K'] - 0.002 * (ue.LSP[bs.ID]['K'] ** 2) + 0.0001 * (
+                        ue.LSP[bs.ID]['K'] ** 3))
         else:
             C_phi = C_phi_NLOS
 
-        print(f'C_phi:{C_phi}')
+        # Azimuth of Arrival
+        Xn = np.random.choice([-1, 1], size=updated_N_cluster)
+        Yn = np.random.normal(loc=0, scale=(ue.LSP[bs.ID]['ASA'] / 7), size=updated_N_cluster)
+        phi_notch_n_AOA = 2 * (ue.LSP[bs.ID]['ASA'] / 1.4) * np.sqrt(-np.log(P_n / max(P_n))) / C_phi
+
+        phi_LOS_AOA = np.rad2deg(self.los_azi_angle_rad_Matrix[ue.ID][bs.ID])
+        if not (self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS'):
+            phi_n_AOA = Xn * phi_notch_n_AOA + Yn + phi_LOS_AOA
+        else:
+            phi_n_AOA = (Xn * phi_notch_n_AOA + Yn) - (Xn[0] * phi_notch_n_AOA[0] + Yn[0] - phi_LOS_AOA)
+
+        alpha_m = [0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129, 0.6797, -0.6797,
+                   0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551]
+        phi_n_m_AOA = [None]*ue.LSP[bs.ID]['M']
+        for m in ue.LSP[bs.ID]['M']:
+            phi_n_m_AOA[m] = phi_n_AOA + ue.LSP[bs.ID]['c_ASA'] * alpha_m[m]
+
+        # Azimuth of Departure
+        # Xn = np.random.choice([-1, 1], size=updated_N_cluster)
+        # Yn = np.random.normal(loc=0, scale=(ue.LSP[bs.ID]['ASA'] / 7), size=updated_N_cluster)
+        # phi_notch_n_AOA = 2 * (ue.LSP[bs.ID]['ASA'] / 1.4) * np.sqrt(-np.log(P_n / max(P_n))) / C_phi
+        #
+        # phi_LOS_AOA = np.rad2deg(self.los_azi_angle_rad_Matrix[ue.ID][bs.ID])
+        # if not (self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS'):
+        #     phi_n_AOA = Xn * phi_notch_n_AOA + Yn + phi_LOS_AOA
+        # else:
+        #     phi_n_AOA = (Xn * phi_notch_n_AOA + Yn) - (Xn[0] * phi_notch_n_AOA[0] + Yn[0] - phi_LOS_AOA)
+        #
+        # alpha_m = [0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129, 0.6797,
+        #            -0.6797,
+        #            0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551]
+        # phi_n_m_AOA = [None] * ue.LSP[bs.ID]['M']
+        # for m in ue.LSP[bs.ID]['M']:
+        #     phi_n_m_AOA[m] = phi_n_AOA + ue.LSP[bs.ID]['c_ASA'] * alpha_m[m]
+
+        # Zenith
+        # Todo: Check standard (perhaps instead of using updated_N_cluster I should use the M and M only has a finite
+        #  set of values, so I wouldn't need the interpolation below)
+        if updated_N_cluster == 4:    # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 0.779
+        elif updated_N_cluster == 5:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 0.860
+        elif updated_N_cluster == 6:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 0.913
+        elif updated_N_cluster == 7:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 0.965
+        elif updated_N_cluster == 8:
+            C_theta_NLOS = 0.889
+        elif updated_N_cluster == 9:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.054
+        elif updated_N_cluster == 10:
+            C_theta_NLOS = 0.957
+        elif updated_N_cluster == 11:
+            C_theta_NLOS = 1.031
+        elif updated_N_cluster == 12:
+            C_theta_NLOS = 1.104
+        elif updated_N_cluster == 13:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.168
+        elif updated_N_cluster == 14:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.190
+        elif updated_N_cluster == 15:
+            C_theta_NLOS = 1.1088
+        elif updated_N_cluster == 16:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.226
+        elif updated_N_cluster == 17:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.242
+        elif updated_N_cluster == 18:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.257
+        elif updated_N_cluster == 19:
+            C_theta_NLOS = 1.184
+        elif updated_N_cluster == 20:
+            C_theta_NLOS = 1.178
+        elif updated_N_cluster == 21:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.303
+        elif updated_N_cluster == 22:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.317
+        elif updated_N_cluster == 23:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.330
+        elif updated_N_cluster == 24:  # Not in the standard - incorrect # TODO
+            C_theta_NLOS = 1.344
+        elif updated_N_cluster == 25:
+            C_theta_NLOS = 1.282
+        else:
+            raise "Invalid number of clusters"
+
+        if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS':
+            C_theta = C_theta_NLOS * (
+                        1.3086 + 0.0339 * ue.LSP[bs.ID]['K'] - 0.0077 * (ue.LSP[bs.ID]['K'] ** 2) + 0.0002 * (
+                        ue.LSP[bs.ID]['K'] ** 3))
+        else:
+            C_theta = C_theta_NLOS
+
+        # Zenith of Arrival
+        Xn = np.random.choice([-1, 1], size=updated_N_cluster)
+        Yn = np.random.normal(loc=0, scale=(ue.LSP[bs.ID]['ZSA'] / 7), size=updated_N_cluster)
+        theta_notch_n_ZOA = - ue.LSP[bs.ID]['ZSA'] * np.log(P_n / max(P_n)) / C_theta
+
+        if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'O2I':
+            theta_LOS_ZOA = 90
+        else:
+            theta_LOS_ZOA = np.rad2deg(self.los_zen_angle_rad_Matrix[ue.ID][bs.ID])
+
+        if not (self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS'):
+            theta_n_ZOA = Xn * theta_notch_n_ZOA + Yn + theta_LOS_ZOA
+        else:
+            theta_n_ZOA = (Xn * theta_notch_n_ZOA + Yn) - (Xn[0] * theta_notch_n_ZOA[0] + Yn[0] - theta_LOS_ZOA)
+
+        alpha_m = [0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129, 0.6797,
+                   -0.6797,
+                   0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551]
+        theta_n_m_ZOA = [None] * ue.LSP[bs.ID]['M']
+        for m in ue.LSP[bs.ID]['M']:
+            theta_n_m_ZOA[m] = theta_n_ZOA + ue.LSP[bs.ID]['c_ZSA'] * alpha_m[m]
+            if (theta_n_m_ZOA[m] >= 180) and (theta_n_m_ZOA[m] <= 360):
+                theta_n_m_ZOA[m] = 360 - theta_n_m_ZOA[m]
+
+        # # Zenith of Departure
+        # Xn = np.random.choice([-1, 1], size=updated_N_cluster)
+        # Yn = np.random.normal(loc=0, scale=(ue.LSP[bs.ID]['ZSA'] / 7), size=updated_N_cluster)
+        # theta_notch_n_ZOA = - ue.LSP[bs.ID]['ZSA'] * np.log(P_n / max(P_n)) / C_theta
+        #
+        # if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'O2I':
+        #     theta_LOS_ZOA = 90
+        # else:
+        #     theta_LOS_ZOA = np.rad2deg(self.los_zen_angle_rad_Matrix[ue.ID][bs.ID])
+        #
+        # if not (self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'LOS'):
+        #     theta_n_ZOA = Xn * theta_notch_n_ZOA + Yn + theta_LOS_ZOA
+        # else:
+        #     theta_n_ZOA = (Xn * theta_notch_n_ZOA + Yn) - (Xn[0] * theta_notch_n_ZOA[0] + Yn[0] - theta_LOS_ZOA)
+        #
+        # alpha_m = [0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129, 0.6797,
+        #            -0.6797,
+        #            0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551]
+        # theta_n_m_ZOA = [None] * ue.LSP[bs.ID]['M']
+        # for m in ue.LSP[bs.ID]['M']:
+        #     theta_n_m_ZOA[m] = theta_n_ZOA + ue.LSP[bs.ID]['c_ZSA'] * alpha_m[m]
+        #     if (theta_n_m_ZOA[m] >= 180) and (theta_n_m_ZOA[m] <= 360):
+        #         theta_n_m_ZOA[m] = 360 - theta_n_m_ZOA[m]
+
+
 
     def computeRSRP(self, BS_list: list[BaseStation] = None, UE_list: list[UserEquipment] = None):
         """
