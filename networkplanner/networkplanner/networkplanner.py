@@ -669,16 +669,6 @@ class Network:
         # with np.printoptions(precision=1, suppress=True):
         #     print(self.pathlossMatrix)
 
-    def large_scale_parameter_correlation_method_one(self):
-        # Method 1: Compute all N parameters at once.
-        # Could not implement because I couldn't understand ho to formulate the correlation matrix when two UEs are in
-        # different Indoor/Outdoor situations.
-
-        # Large scale parameters: ['SF', 'K', 'DS', 'ASD', 'ASA', 'ZSD', 'ZSD' ]
-        K = len(self.UEs)
-        M = 7  # Number of LSPs
-        N = K*M
-
     def large_scale_parameter_correlation_method_two(self):
         # Method 2: Create grid; 2D-filter normal iid points in the grid; use filtered values to compute LSP
 
@@ -1843,13 +1833,18 @@ class Network:
 
         if los == 'LOS':
             # Generate K
-            K = sigma_K + sigma_K * correlated_TLSP['K']
+            K = mu_K + sigma_K * correlated_TLSP['K']
 
-            LSP = {'DS': DS, 'ASA': ASA, 'ASD': ASD, 'ZSA': ZSA, 'ZSD': ZSD, 'K': K, 'SF': SF}
+            LSP = {'DS': DS, 'ASA': ASA, 'ASD': ASD, 'ZSA': ZSA, 'ZSD': ZSD, 'K': K, 'SF': SF,
+                   'N': N, 'M': M, 'r_tau': r_tau, 'c_DS': c_DS, 'c_ASD': c_ASD, 'c_ASD': c_ASD, 'c_ZSA': c_ZSA,
+                   'xi': xi}
         else:
-            LSP = {'DS': DS, 'ASA': ASA, 'ASD': ASD, 'ZSA': ZSA, 'ZSD': ZSD, 'SF': SF}
+            LSP = {'DS': DS, 'ASA': ASA, 'ASD': ASD, 'ZSA': ZSA, 'ZSD': ZSD, 'SF': SF,
+                   'N': N, 'M': M, 'r_tau': r_tau, 'c_DS': c_DS, 'c_ASD': c_ASD, 'c_ASD': c_ASD, 'c_ZSA': c_ZSA,
+                   'xi': xi}
 
         return LSP
+
 
     # def generateLargeScaleParams_link(self, bs: BaseStation, ue: UserEquipment):
     #
