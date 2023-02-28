@@ -3,6 +3,7 @@ import numpy as np
 import hexalattice
 import matplotlib.pyplot as plt
 
+
 if __name__ == "__main__":
 
     network = nw.Network(scenario='UMa', free_space=True)
