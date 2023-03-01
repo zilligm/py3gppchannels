@@ -383,7 +383,11 @@ class Network:
                 xy_position = np.array([(ue.pos_x - bs.pos_x), (ue.pos_y - bs.pos_y)])
 
                 # Compute the azimuth angle
-                az_angle_rad = np.arccos(xy_position[0] / dist_2D)
+                if xy_position[1] >= 0:
+                    az_angle_rad = np.arccos(xy_position[0] / dist_2D)
+                else:
+                    az_angle_rad = 2 * np.pi - np.arccos(xy_position[0] / dist_2D)
+
 
                 # Compute relative BS height
                 h_e = bs.height - ue.height
@@ -632,7 +636,12 @@ class Network:
         # Sectorization
         # Todo: incorporate AoA/AoD
         # For now, I'm doing simple sectorization
-        if np.abs(self.los_azi_angle_rad_Matrix[ue.ID][bs.ID] - np.deg2rad(sec.center_orientation)) <= (np.deg2rad(sec.sector_width / 2)):
+        angle_diff = self.los_azi_angle_rad_Matrix[ue.ID][bs.ID] - np.deg2rad(sec.center_orientation)
+        if angle_diff > np.pi:
+            angle_diff = angle_diff - 2*np.pi
+        if angle_diff < - np.pi:
+            angle_diff = angle_diff + 2*np.pi
+        if np.abs(angle_diff) <= (np.deg2rad(sec.sector_width / 2)):
             pathloss = pathloss
         else:
             pathloss = np.inf
@@ -1151,13 +1160,6 @@ class Network:
 
         return C, delta_m, LSP
 
-
-    # def computeSmallScaleParameters(self, bs_list: list[BaseStation], ue_list: list[UserEquipment]):
-    #     for ue in ue_list:
-    #         for bs in bs_list:
-    #             sec = bs.sector[0]  # Todo: remove
-    #             LSP = self.generateLargeScaleParams_link(bs, sec, ue)
-    #             # self.generateSmallScaleParams_link(bs, sec, ue, LSP)
 
     def generateLinkLPS(self, bs: BaseStation, ue: UserEquipment, correlated_TLSP):
 
