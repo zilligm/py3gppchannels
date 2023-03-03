@@ -29,6 +29,7 @@ class BaseStation:
             self.sector_width = sector_width
             self.frequency = frequency
             self.tx_power_dB = tx_power_dB
+            self.number_of_PRBs = 100  # 20 MHz channel with SCS 15 KHz (LTE)
             self.connected_UEs = []
 
     class AntennaPanel:
@@ -134,7 +135,8 @@ class UserEquipment:
 class Network:
     def __init__(self, scenario: str = 'UMa', free_space: bool = False,
                  BSs:  Union[List[BaseStation], BaseStation] = [],
-                 UEs:  Union[List[UserEquipment], UserEquipment] = []):
+                 UEs:  Union[List[UserEquipment], UserEquipment] = [],
+                 seed: int = None):
         """
         Create the Network
         :param scenario: indicates the scenario:    'UMa' -> Urban Macro
@@ -166,6 +168,10 @@ class Network:
         self.los_zen_angle_rad_Matrix = []
         self.dist2D_Matrix = []
         self.dist3D_Matrix = []
+
+        self.UE_attach_threshold = -150
+        
+        self.random_seed = seed
 
         if self.scenario == 'UMi':
             self.layout = 'Hexagonal'
@@ -211,7 +217,7 @@ class Network:
 
             # Optional Parametes
             self.average_building_heigh = 5.0  # meters [5..50]
-            self.average_street_width = 20.0  # meters [5..50]
+            self.average_street_width = 5.0  # meters [5..50]
 
         # TODO: Implement other scenarios:  Indoor Factory (InF) - (InF-SL, InF-DL, InF-SH, InF-DH, InF-HH)
         #                                   Indoor Office/Hotspot (InH)
@@ -341,7 +347,7 @@ class Network:
             else:
                 Pr_LOS = (18 / dist_2D) + np.exp(-dist_2D / 36) * (1 - 18 / dist_2D)
 
-        if np.random.random() < Pr_LOS:
+        if self.random_generator_LOS.random() < Pr_LOS:
             # return 'LOS'
             return 0
         else:
@@ -412,9 +418,10 @@ class Network:
                                                            (ue1.pos_y - ue2.pos_y) ** 2) ** 0.5
 
     def computeLOS(self):
+        self.random_generator_LOS = np.random.default_rng(seed=self.random_seed)
         self.los_Matrix = np.zeros((len(self.UEs), len(self.BSs)), dtype=int)
-        for ue in self.UEs:
-            for bs in self.BSs:
+        for bs in self.BSs:
+            for ue in self.UEs:
                 self.los_Matrix[ue.ID][bs.ID] = self.LineOfSight(bs, ue)
 
     def Pathloss(self, bs: BaseStation, sec: BaseStation.Sector, ue: UserEquipment):
@@ -451,7 +458,7 @@ class Network:
                     raise "BS height is not the default value"  # Todo: need to check for correction formulas
 
                 # Break point distance (Table 7.4.1.1, Note 5)
-                d_bp = 2 * np.pi * bs.height * ue.height * fc / c
+                d_bp = 2 * np.pi * bs.height * ue.height * fc * 1_000_000_000/ c
 
                 if los == 'LOS':
                     # Compute PL_RMa-LOS
@@ -470,9 +477,9 @@ class Network:
                         sigma_sf = 6
                     else:
                         # # TODO: remove
-                        # pathloss = np.inf
-                        # sigma_sf = 6
-                        raise 'Invalid range for UE-BS distance'
+                        pathloss = np.inf
+                        sigma_sf = 6
+                        # raise 'Invalid range for UE-BS distance'
 
                 if los == 'NLOS':
                     # Compute PL_RMa-LOS
@@ -496,11 +503,10 @@ class Network:
                     # Compute PL_RMa-NLOS
                     PL_RMa_NLOS = 161.04 - 7.1 * np.log10(self.average_street_width) \
                                   + 7.5 * np.log10(self.average_building_heigh) \
-                                  - (24.37 - 3.7 * ((self.average_building_heigh / bs.height) ** 2)) * np.log10(
-                        bs.height) \
+                                  - (24.37 - 3.7 * ((self.average_building_heigh / bs.height) ** 2)) * np.log10(bs.height) \
                                   + (43.42 - 3.1 * np.log10(bs.height)) * (np.log10(dist_3D) - 3) \
                                   + 20 * np.log10(fc) \
-                                  - (3.2 * (np.log10(11.75 * ue.height)) ** 2 - 4.97)
+                                  - (3.2 * (np.log10(11.75 * ue.height) ** 2) - 4.97)
 
                     pathloss = max(PL_RMa_LOS, PL_RMa_NLOS)
                     sigma_sf = 8
@@ -523,10 +529,10 @@ class Network:
                         g = (5 / 4) * ((dist_2D / 100) ** 3) * np.exp(-dist_2D / 150)
                     C = (((ue.height - 13) / 10) ** 1.5) * g
 
-                if np.random.random() < 1 / (1 + C):
+                if self.random_generator_PL.random() < 1 / (1 + C):
                     h_e = 1
                 else:
-                    h_e = np.random.choice(np.arange(12, ue.height - 1.5, 3))
+                    h_e = self.random_generator_PL.choice(np.arange(12, ue.height - 1.5, 3))
 
                 d_bp = 4 * (bs.height - h_e) * (ue.height - h_e) * fc / c
 
@@ -540,6 +546,9 @@ class Network:
                         pathloss = 28.0 + 40 * np.log10(dist_3D) + 20 * np.log10(fc) \
                                    - 9 * np.log10(d_bp ** 2 + (bs.height - ue.height) ** 2)
                         sigma_sf = 4
+                    elif dist_2D > 5000:  # Todo: Is this valid?
+                        pathloss = np.inf
+                        sigma_sf = 4.0
                     else:
                         raise 'Invalid range for UE-BS distance'
 
@@ -551,6 +560,9 @@ class Network:
                     elif (d_bp <= dist_2D) and (dist_2D <= 5000):
                         PL_UMa_LOS = 28.0 + 40 * np.log10(dist_3D) + 20 * np.log10(fc) \
                                      - 9 * np.log10(d_bp ** 2 + (bs.height - ue.height) ** 2)
+                    elif dist_2D > 5000:  # Todo: Is this valid?
+                        PL_UMa_LOS = np.inf
+                        sigma_sf = 4.0
                     else:
                         raise 'Invalid range for UE-BS distance'
 
@@ -559,7 +571,7 @@ class Network:
                         PL_UMa_NLOS = 13.54 + 39.08 * np.log10(dist_3D) + 20 * np.log10(fc) - 0.6 * np.log10(
                             ue.height - 1.5)
                     else:
-                        PL_UMa_NLOS = -np.inf
+                        PL_UMa_NLOS = np.inf
 
                     pathloss = max(PL_UMa_LOS, PL_UMa_NLOS)
                     sigma_sf = 6
@@ -589,6 +601,9 @@ class Network:
                         pathloss = 32.4 + 40 * np.log10(dist_3D) + 20 * np.log10(fc) \
                                    - 9.5 * np.log10(d_bp ** 2 + (bs.height - ue.height) ** 2)
                         sigma_sf = 4.0
+                    elif dist_2D > 5000:  # Todo: Is this valid?
+                        pathloss = np.inf
+                        sigma_sf = 4.0
                     else:
                         raise 'Invalid range for UE-BS distance'
 
@@ -601,6 +616,9 @@ class Network:
                     elif (d_bp <= dist_2D) and (dist_2D <= 5000):
                         PL_UMi_LOS = 32.4 + 40 * np.log10(dist_3D) + 20 * np.log10(fc) \
                                      - 9.5 * np.log10(d_bp ** 2 + (bs.height - ue.height) ** 2)
+                    elif dist_2D > 5000:  # Todo: Is this valid?
+                        pathloss = np.inf
+                        sigma_sf = 4.0
                     else:
                         raise 'Invalid range for UE-BS distance'
 
@@ -608,7 +626,7 @@ class Network:
                     try:
                         PL_UMi_NLOS = 35.3 * np.log10(dist_3D) \
                                       + 22.4 + 21.3 * np.log10(fc) \
-                                      - 0.3 * np.log10(ue.height - 1.5)
+                                      - 0.3 * (ue.height - 1.5)
                         pathloss = max(PL_UMi_LOS, PL_UMi_NLOS)
                         sigma_sf = 7.82
                     except:
@@ -622,16 +640,16 @@ class Network:
                 PL_tw = 0
                 PL_in = 0
                 sigma_p_sq = 0
-                pathloss = pathloss + PL_tw + PL_in + np.random.normal(scale=np.sqrt(sigma_p_sq))
+                pathloss = pathloss + PL_tw + PL_in + self.random_generator_PL.normal(scale=np.sqrt(sigma_p_sq))
 
             # Additional Pathloss terms for in Car UEs
             if ue.location == 'Car':
                 mu = 9.0  # 20 for metalized window
                 sigma_p = 5.0
-                pathloss = pathloss + np.random.normal(loc=mu, scale=sigma_p)
+                pathloss = pathloss + self.random_generator_PL.normal(loc=mu, scale=sigma_p)
 
             # Final Pathloss with shadow fading
-            pathloss = pathloss + np.random.lognormal(sigma=sigma_sf)
+            pathloss = pathloss + self.random_generator_PL.lognormal(sigma=sigma_sf)
 
         # Sectorization
         # Todo: incorporate AoA/AoD
@@ -661,15 +679,16 @@ class Network:
         if UE_list is None:
             UE_list = self.UEs
 
+        self.random_generator_PL = np.random.default_rng(seed=self.random_seed)
+
         nBS = len(BS_list)
         nUE = len(UE_list)
         nSectors = nBS * self.number_of_sectors
         self.pathlossMatrix = np.zeros((nUE, nSectors))
         self.shadowFadingMatrix = np.zeros((nUE, nSectors))
-        for eu_ind, ue in enumerate(UE_list):
-            for bs_ind, bs in enumerate(BS_list):
-                # LOS/NLOS is determined for each BS and UE pair
-                for sec_ind, sec in enumerate(bs.sector):
+        for bs_ind, bs in enumerate(BS_list):
+            for sec_ind, sec in enumerate(bs.sector):
+                for eu_ind, ue in enumerate(UE_list):
                     # Pathloss is determined for each Sector and UE pair
                     pathloss, sigma_sf = self.Pathloss(bs=bs, sec=sec, ue=ue)
                     self.pathlossMatrix[ue.ID][sec.ID] = pathloss
@@ -3126,7 +3145,7 @@ class Network:
         for bs in BS_list:
             for sec in bs.sector:
                 for ue in UE_list:
-                    self.RSRP_Matrix[ue.ID][sec.ID] = sec.tx_power_dB - self.pathlossMatrix[ue.ID][sec.ID]
+                    self.RSRP_Matrix[ue.ID][sec.ID] = sec.tx_power_dB - 10*np.log10(12*sec.number_of_PRBs) - self.pathlossMatrix[ue.ID][sec.ID]
 
         # with np.printoptions(precision=1, suppress=True):
         #     print(self.RSRP_Matrix)
@@ -3147,8 +3166,12 @@ class Network:
         self.computeRSRP(BS_list=BS_list, UE_list=UE_list)
         for eu_ind, ue in enumerate(UE_list):
             highestRSRP_sectorIndex = np.argmax(self.RSRP_Matrix[eu_ind][:])
-            ue.serving_sector = highestRSRP_sectorIndex
-            ue.serving_base_station = self.cellSectorMap[highestRSRP_sectorIndex]
+            if self.RSRP_Matrix[eu_ind][highestRSRP_sectorIndex] > self.UE_attach_threshold:
+                ue.serving_sector = highestRSRP_sectorIndex
+                ue.serving_base_station = self.cellSectorMap[highestRSRP_sectorIndex]
+            else:
+                ue.serving_sector = None
+                ue.serving_base_station = None
 
             # with np.printoptions(precision=1, suppress=True):
             #     print(f'UE:{eu_ind} - RSRP:{self.RSRP_Matrix[eu_ind][:]}')
@@ -3175,12 +3198,16 @@ class Network:
 
         self.SINR_Matrix = np.zeros(nUE)
         for ue in UE_list:
-            signal_power_dB = self.RSRP_Matrix[ue.ID][ue.serving_sector]
-            interference_plus_noise = 10 ** (ue.noise_floor / 10)
-            for sec_idx in (np.delete(np.array(SEC_list), ue.serving_sector)):
-                interference_plus_noise = interference_plus_noise + 10 ** (self.RSRP_Matrix[ue.ID][sec_idx] / 10)
-            interference_plus_noise_dB = 10 * np.log10(interference_plus_noise)
-            self.SINR_Matrix[ue.ID] = signal_power_dB - interference_plus_noise_dB
+            if ue.serving_sector is not None:
+                signal_power_dB = self.RSRP_Matrix[ue.ID][ue.serving_sector]
+                interference_plus_noise = 10 ** ((ue.noise_floor - 10*np.log10(12 * self.BSs[self.cellSectorMap[ue.serving_sector]].sector[ue.serving_sector % self.number_of_sectors].number_of_PRBs)) / 10)
+                # interference_plus_noise = 10 ** (ue.noise_floor/ 10)
+                for sec_idx in (np.delete(np.array(SEC_list), ue.serving_sector)):
+                    interference_plus_noise = interference_plus_noise + 10 ** (self.RSRP_Matrix[ue.ID][sec_idx] / 10)
+                interference_plus_noise_dB = 10 * np.log10(interference_plus_noise)
+                self.SINR_Matrix[ue.ID] = signal_power_dB - interference_plus_noise_dB
+            else:
+                self.SINR_Matrix[ue.ID] = None
 
             # with np.printoptions(precision=1, suppress=True):
             #     print(f'UE:{eu_ind} - SINR:{self.SINR_Matrix[ue.ID]}')
