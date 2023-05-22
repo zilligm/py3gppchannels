@@ -22,7 +22,7 @@ You can install `py3gppchannel` using pip:
 pip install py3gppchannel
 
 ## Disclaimer
-DISCLAIMER: The authors and contributors of this software package (hereinafter referred to as "the Code") make no warranties or guarantees, expressed or implied, regarding the functionality, performance, or fitness for a particular purpose of the Code.
+The authors and contributors of this software package (hereinafter referred to as "the Code") make no warranties or guarantees, expressed or implied, regarding the functionality, performance, or fitness for a particular purpose of the Code.
 
 The Code is provided "as is" without any warranty, whether expressed or implied. The authors and contributors shall not be held liable for any damages, claims, or liabilities arising from the use, distribution, or modification of the Code or any derivative works thereof.
 
