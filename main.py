@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
 
-    network = nw.Network(scenario='UMa', free_space=False)
+    network = nw.Network(scenario='RMa', free_space=False)
 
     # plt.ion()
     fig, (h_ax, ax2) = plt.subplots(1, 2)

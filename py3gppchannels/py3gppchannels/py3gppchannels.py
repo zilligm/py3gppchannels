@@ -544,7 +544,7 @@ class Network:
                 else:
                     h_e = self.random_generator_PL.choice(np.arange(12, ue.height - 1.5, 3))
 
-                d_bp = 4 * (bs.height - h_e) * (ue.height - h_e) * fc / c
+                d_bp = 4 * (bs.height - h_e) * (ue.height - h_e) * fc * 1_000_000_000 / c
 
                 # Pathloss computation for LOS
                 if los == 'LOS':
@@ -599,7 +599,7 @@ class Network:
 
                 # Breakpoint Distance (Table 7.4.1.1, Note 1)
                 h_e = 1.0  # meter
-                d_bp = 4 * (bs.height - h_e) * (ue.height - h_e) * fc / c
+                d_bp = 4 * (bs.height - h_e) * (ue.height - h_e) * fc * 1_000_000_000 / c
 
                 # Pathloss computation for LOS
                 if los == 'LOS':
