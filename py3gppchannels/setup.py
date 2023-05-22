@@ -9,7 +9,7 @@ setup(
     description=DESCRIPTION,
     name="py3gppchannels",
     version=VERSION,
-    url=https://github.com/zilligm/py3gppchannels,
+    url='https://github.com/zilligm/py3gppchannels',
     packages=find_packages(include=["matplotlib", "numpy", "itertools", "hexalattice"]),
     keywords=['wireless', 'wireless communication', 'wireless network', '3gpp', '5G', 'channel model', 'pathloss'],
     setup_requires=['wheel']
