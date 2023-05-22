@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 DESCRIPTION = 'The py3gppchannel library is a Python package that implements the 3GPP standardized radio channel ' \
               'models (3GPP TR 38.901). It provides a comprehensive set of functions for simulating wireless ' \
               'communication systems and evaluating their performance under realistic channel conditions.'
