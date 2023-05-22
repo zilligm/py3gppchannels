@@ -9,7 +9,7 @@ setup(
     description=DESCRIPTION,
     name="py3gppchannels",
     version=VERSION,
-
+    long_description= file: README.md,
     packages=find_packages(include=["matplotlib", "numpy", "itertools", "hexalattice"]),
     keywords=['wireless', 'wireless communication', 'wireless network', '3gpp', '5G', 'channel model', 'pathloss'],
     setup_requires=['wheel']
