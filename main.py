@@ -1,4 +1,4 @@
-import py3gppchannels.py3gppchannels as nw
+import py3gppchannels as nw
 import numpy as np
 import hexalattice
 import matplotlib.pyplot as plt
