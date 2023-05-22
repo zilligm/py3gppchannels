@@ -1,11 +1,9 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import itertools
-import hexalattice
 from typing import List, Union
 from scipy.signal import convolve2d
 from scipy.linalg import sqrtm
-from scipy.interpolate import griddata, RectBivariateSpline, RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator
 
 class BaseStation:
     # Auto ID generation
@@ -68,7 +66,7 @@ class BaseStation:
             self.polarization = polarization
 
     def __init__(self, pos_x: float = 0, pos_y: float = 0, height: float = 10, number_of_sectors: int = 3,
-                 tx_power_dB: float = 20, rotation: float = 0):
+                 tx_power_dB: float = 23, rotation: float = 0):
         """
         Create a Base Station
         :param pos_x: position of the Base Station in the x axis [meters]
@@ -149,7 +147,7 @@ class Network:
         self.scenario = scenario
 
         self.BSs = BSs
-        self.BS_tx_power_dB = 32
+        self.BS_tx_power_dB = 23
         self.BS_noise_floor_dB = -125
 
         self.UEs = UEs
@@ -241,27 +239,27 @@ class Network:
                                       location=location,
                                       noise_floor=noise_floor))
 
-    def remove_ue(self, ue_id: Union[List[int], int] = None, verbose=False):
-        if type(ue_id) is list:
-            for ue_idx, ue in enumerate(self.UEs):
-                if ue.ID in ue_id:
-                    self.UEs.pop(ue_idx)
-                    ue_id.remove(ue_idx)
-            if verbose:
-                if len(ue_id) == 0:
-                    print(f'All UEs have been removed successfully.')
-                elif len(ue_id) > 0:
-                    print(f'UEs {ue_id} have not been removed.')
-        elif type(ue_id) is int:
-            for ue_idx, ue in enumerate(self.UEs):
-                if ue.ID == ue_id:
-                    self.UEs.pop(ue_idx)
-                    if verbose:
-                        print(f'UE {ue_id} has been removed successfully.')
-                        break
-        else:
-            raise 'Invalid input'
-        # Todo: may need to recompute many variables using the new list of UEs
+    # def remove_ue(self, ue_id: Union[List[int], int] = None, verbose=False):
+    #     if type(ue_id) is list:
+    #         for ue_idx, ue in enumerate(self.UEs):
+    #             if ue.ID in ue_id:
+    #                 self.UEs.pop(ue_idx)
+    #                 ue_id.remove(ue_idx)
+    #         if verbose:
+    #             if len(ue_id) == 0:
+    #                 print(f'All UEs have been removed successfully.')
+    #             elif len(ue_id) > 0:
+    #                 print(f'UEs {ue_id} have not been removed.')
+    #     elif type(ue_id) is int:
+    #         for ue_idx, ue in enumerate(self.UEs):
+    #             if ue.ID == ue_id:
+    #                 self.UEs.pop(ue_idx)
+    #                 if verbose:
+    #                     print(f'UE {ue_id} has been removed successfully.')
+    #                     break
+    #     else:
+    #         raise 'Invalid input'
+    #     # Todo: may need to recompute many variables using the new list of UEs
 
 
     def add_bs(self, pos_x: float = 0, pos_y: float = 0, height: float = None, number_of_sectors: int = None,
@@ -282,28 +280,28 @@ class Network:
                                     number_of_sectors=number_of_sectors,
                                     rotation=rotation))
 
-    def remove_bs(self, bs_id: Union[List[int], int] = None, verbose=False):
-        if type(bs_id) is list:
-            for bs_idx, bs in enumerate(self.BSs):
-                if bs.ID in bs_id:
-                    self.BSs.pop(bs_idx)
-                    bs_id.remove(bs_idx)
-            if verbose:
-                if len(bs_id) == 0:
-                    print(f'All BSs have been removed successfully.')
-                elif len(bs_id) > 0:
-                    print(f'BSs {bs_id} have not been removed.')
-        elif type(bs_id) is int:
-            for bs_idx, bs in enumerate(self.BSs):
-                if bs.ID == bs_id:
-                    self.BSs.pop(bs_idx)
-                    if verbose:
-                        print(f'BS {bs_id} has been removed successfully.')
-                        break
-            print(f'BS {bs_id} has not been removed.')
-        else:
-            raise 'Invalid input'
-        # Todo: may need to recompute many variables using the new list of UEs
+    # def remove_bs(self, bs_id: Union[List[int], int] = None, verbose=False):
+    #     if type(bs_id) is list:
+    #         for bs_idx, bs in enumerate(self.BSs):
+    #             if bs.ID in bs_id:
+    #                 self.BSs.pop(bs_idx)
+    #                 bs_id.remove(bs_idx)
+    #         if verbose:
+    #             if len(bs_id) == 0:
+    #                 print(f'All BSs have been removed successfully.')
+    #             elif len(bs_id) > 0:
+    #                 print(f'BSs {bs_id} have not been removed.')
+    #     elif type(bs_id) is int:
+    #         for bs_idx, bs in enumerate(self.BSs):
+    #             if bs.ID == bs_id:
+    #                 self.BSs.pop(bs_idx)
+    #                 if verbose:
+    #                     print(f'BS {bs_id} has been removed successfully.')
+    #                     break
+    #         print(f'BS {bs_id} has not been removed.')
+    #     else:
+    #         raise 'Invalid input'
+    #     # Todo: may need to recompute many variables using the new list of UEs
 
     def LineOfSight(self, bs: BaseStation, ue: UserEquipment):
         """
@@ -372,6 +370,11 @@ class Network:
                 return 'Car'
 
     def computeGeometry(self):
+        """
+        Computes the 2D and 3D distances and the line-of-sight azimuth and zenith angles between all BSs and UEs.
+        Results are stored in the class attributes 'dist2D_Matrix', 'dist3D_Matrix', 'los_azi_angle_rad_Matrix', and
+        'los_zen_angle_rad_Matrix'.
+        """
         nUE = len(self.UEs)
         nBS = len(self.BSs)
         self.los_azi_angle_rad_Matrix = np.zeros((nUE, nBS), dtype=float)
@@ -408,16 +411,23 @@ class Network:
                 self.los_azi_angle_rad_Matrix[ue.ID][bs.ID] = az_angle_rad
                 self.los_zen_angle_rad_Matrix[ue.ID][bs.ID] = ze_angle_rad
 
-    def compute_ue_distance(self):
-        nUE = len(self.UEs)
-        self.UE_dist2D_Matrix = np.zeros((nUE, nUE), dtype=float)
-
-        for ue1_idx, ue1 in enumerate(self.UEs):
-            for ue2_idx, ue2 in enumerate(self.UEs):
-                self.UE_dist2D_Matrix[ue1_idx, ue2_idx] = ((ue1.pos_x - ue2.pos_x) ** 2 +
-                                                           (ue1.pos_y - ue2.pos_y) ** 2) ** 0.5
+    # def compute_ue_distance(self):
+    #     """
+    #     Computes the 2D distance between all UEs.
+    #     """
+    #     nUE = len(self.UEs)
+    #     self.UE_dist2D_Matrix = np.zeros((nUE, nUE), dtype=float)
+    #
+    #     for ue1_idx, ue1 in enumerate(self.UEs):
+    #         for ue2_idx, ue2 in enumerate(self.UEs):
+    #             self.UE_dist2D_Matrix[ue1_idx, ue2_idx] = ((ue1.pos_x - ue2.pos_x) ** 2 +
+    #                                                        (ue1.pos_y - ue2.pos_y) ** 2) ** 0.5
 
     def computeLOS(self):
+        """
+        Computes line-of-sight conditions between BSs and UEs.
+        Results are stored in the class attribute 'los_Matrix'.
+        """
         self.random_generator_LOS = np.random.default_rng(seed=self.random_seed)
         self.los_Matrix = np.zeros((len(self.UEs), len(self.BSs)), dtype=int)
         for bs in self.BSs:
@@ -653,7 +663,7 @@ class Network:
 
         # Sectorization
         # Todo: incorporate AoA/AoD
-        # For now, I'm doing simple sectorization
+        # For now, this is doing simple sectorization
         angle_diff = self.los_azi_angle_rad_Matrix[ue.ID][bs.ID] - np.deg2rad(sec.center_orientation)
         if angle_diff > np.pi:
             angle_diff = angle_diff - 2*np.pi
@@ -671,7 +681,7 @@ class Network:
         Computes the Pathloss and Line of Sight parameters for combinations of BSs and UEs
         :param BS_list: list of BSs
         :param UE_list: lsit of UEs
-        :return: update Network attributes losMatrix and pathlossMatrix
+        :return: update Network attributes pathlossMatrix and shadowFadingMatrix
         """
         if BS_list is None:
             BS_list = self.BSs
@@ -694,8 +704,6 @@ class Network:
                     self.pathlossMatrix[ue.ID][sec.ID] = pathloss
                     self.shadowFadingMatrix[ue.ID][sec.ID] = sigma_sf
 
-        # with np.printoptions(precision=1, suppress=True):
-        #     print(self.pathlossMatrix)
 
     def large_scale_parameter_correlation_method_two(self):
         # Method 2: Create grid; 2D-filter normal iid points in the grid; use filtered values to compute LSP
@@ -726,7 +734,7 @@ class Network:
         yf = np.linspace(-delta_d * (D - 1) / 2, delta_d * (D - 1) / 2, num=D)
         xv, yv = np.meshgrid(xf, yf)
         d = np.sqrt(xv**2 + yv**2)
-        # Todo: for efficiency, I should select D according to delta_m (when delta_m is small eg. 3, D has to be
+        # Todo: for efficiency, this should select D according to delta_m (when delta_m is small eg. 3, D has to be
         #  larger eg. 11; when when delta_m is small eg. 50, D can be smaller eg. 5
 
         for los in ['LOS', 'NLOS']:
@@ -763,7 +771,9 @@ class Network:
                         ue.LSP[bs.ID] = self.generateLinkLPS(bs, ue, correlated_TLSP)
 
     def generateLargeScaleParamsCorrelation(self, los):
-
+        """"
+        Generates the Large Scale Parameter correlation matrices and the correlation distance.
+        """
         if self.scenario == 'UMi':
             if los == 'LOS':
                 # Cross-Correlations
@@ -3147,8 +3157,6 @@ class Network:
                 for ue in UE_list:
                     self.RSRP_Matrix[ue.ID][sec.ID] = sec.tx_power_dB - 10*np.log10(12*sec.number_of_PRBs) - self.pathlossMatrix[ue.ID][sec.ID]
 
-        # with np.printoptions(precision=1, suppress=True):
-        #     print(self.RSRP_Matrix)
 
     def UE_attach(self, BS_list: list[BaseStation] = None, UE_list: list[UserEquipment] = None):
         """
