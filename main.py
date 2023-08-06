@@ -1,4 +1,4 @@
-import py3gppchannels as nw
+import py3gppchannels.py3gppchannels as nw
 import numpy as np
 import hexalattice
 import matplotlib.pyplot as plt
@@ -48,29 +48,28 @@ if __name__ == "__main__":
     # network.large_scale_parameter_correlation_method_two()
 
     #
-    network.cell_sector_mapping(network.BSs)
-    # network.computeLOS()
-    # network.computeGeometry()
-    # network.NetworkPathloss()
+    # network.cell_sector_mapping(network.BSs)
     # # network.computeSmallScaleParameters(network.BSs, network.UEs)
-    network.computeRSRP()
-    network.UE_attach()
-    network.computeSINR()
 
-    color = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink']
-    marker = ['.', 'x', '+']
 
-    for bs in network.BSs:
-        h_ax.scatter(bs.pos_x, bs.pos_y,
-                     color=color[int(bs.ID % 7)],
-                     marker='^', label=str(bs.ID))
-        h_ax.annotate(str(bs.ID), (bs.pos_x + 0.4, bs.pos_y + 3))
-
-    for ue in network.UEs:
-        h_ax.scatter(ue.pos_x, ue.pos_y,
-                     color=color[int(ue.serving_base_station % 7)],
-                     marker=marker[int(ue.serving_sector % 3)], alpha=0.5)
-
-    SinrMatrix = np.clip(network.SINR_Matrix, -60, 60)
-    ax2.hist(SinrMatrix, range=[np.floor(min(SinrMatrix)) - 1, np.ceil(max(SinrMatrix)) + 1])
-    plt.show(block=True)
+    # network.computeRSRP()
+    # network.UE_attach()
+    # network.computeSINR()
+    #
+    # color = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink']
+    # marker = ['.', 'x', '+']
+    #
+    # for bs in network.BSs:
+    #     h_ax.scatter(bs.pos_x, bs.pos_y,
+    #                  color=color[int(bs.ID % 7)],
+    #                  marker='^', label=str(bs.ID))
+    #     h_ax.annotate(str(bs.ID), (bs.pos_x + 0.4, bs.pos_y + 3))
+    #
+    # for ue in network.UEs:
+    #     h_ax.scatter(ue.pos_x, ue.pos_y,
+    #                  color=color[int(ue.serving_base_station % 7)],
+    #                  marker=marker[int(ue.serving_sector % 3)], alpha=0.5)
+    #
+    # SinrMatrix = np.clip(network.SINR_Matrix, -60, 60)
+    # ax2.hist(SinrMatrix, range=[np.floor(min(SinrMatrix)) - 1, np.ceil(max(SinrMatrix)) + 1])
+    # plt.show(block=True)
