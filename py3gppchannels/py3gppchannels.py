@@ -43,6 +43,11 @@ class Location(Enum):
 
 @dataclass
 class FrequencyDependentLargeScaleParameters:
+    """
+    Data class: stores the frequency-dependent LSP for a BS-UE link;
+    The class BsUeLink's attribute lspContainer is a dict with keys given by the frequency (GHz) and the value given by
+    a FrequencyDependentLargeScaleParameters object.
+    """
     Pathloss: float = 0.0
     DS: float = 0.0
     ASA: float = 0.0
@@ -69,6 +74,10 @@ class FrequencyDependentLargeScaleParameters:
 
 @dataclass
 class FrequencyIndependentLargeScaleParameters:
+    """
+    Data class: stores the frequency-dependent LSP for a BS-UE link;
+    The class BsUeLink's attribute frequency_independent_lsp stores the FrequencyIndependentLargeScaleParameters object.
+    """
     Pathloss: float = 0.0
     SF: float = 0.0
     N: int = 0
@@ -109,6 +118,7 @@ class SmallScaleParameters:
 
 
 class AntennaElement:
+
     def __init__(self, antenna_model='Model-2', radiation_pattern_model='3GPP'):
         self.antenna_model = antenna_model
         self.radiation_pattern_model = radiation_pattern_model
@@ -127,7 +137,7 @@ class AntennaElement:
         else:
             raise 'Invalid radiation pattern model'
 
-        # TODO: How does the Maximum directional gain come into play?
+        # TODO: How does the "Maximum directional gain" come into play?
 
     def field_pattern_vertical(self, theta_lcs, phi_lcs, zeta):
         """
@@ -158,28 +168,43 @@ class AntennaElement:
 
 
 class AntennaPanel:
-    def __init__(self, n_panel_col: int = 1, n_panel_row: int = 1,
-                 panel_v_spacing: float = 0.5, panel_h_spacing: float = 0.5,
-                 n_antenna_col: int = 2, n_antenna_row: int = 2,
-                 antenna_v_spacing: float = 0.5, antenna_h_spacing: float = 0.5,
-                 polarization: str = 'single', radiation_pattern_model: str = '3GPP',
-                 bearing: float = 0.0, downtilt: float = 0.0, slant: float = 0.0
-                 ):
+    _default_n_panel_col = 2
+    _default_n_panel_row = 1
+    _default_panel_v_spacing = 2
+    _default_panel_h_spacing = 2
+    _default_n_antenna_col = 2
+    _default_n_antenna_row = 2
+    _default_antenna_v_spacing = 0.5
+    _default_antenna_h_spacing = 0.5
+    _default_polarization = 'single'
+    _default_radiation_pattern_model = '3GPP'
+    _default_bearing = 0.0
+    _default_downtilt = 0.0
+    _default_slant = 0.0
+
+    def __init__(self, n_panel_col: int = _default_n_panel_col, n_panel_row: int = _default_n_panel_row,
+                 panel_v_spacing: float = _default_panel_v_spacing, panel_h_spacing: float = _default_panel_h_spacing,
+                 n_antenna_col: int = _default_n_antenna_col, n_antenna_row: int = _default_n_antenna_row,
+                 antenna_v_spacing: float = _default_antenna_v_spacing,
+                 antenna_h_spacing: float = _default_antenna_h_spacing,
+                 polarization: str = _default_polarization,
+                 radiation_pattern_model: str = _default_radiation_pattern_model,
+                 bearing: float = _default_bearing, downtilt: float = _default_downtilt, slant: float = _default_slant):
         """
         Create the antenna panel object. Each antenna panel contains an antenna array.
-
-        :param sector_id: sector ID associated with the antenna panel
         :param n_panel_col: number of columns in the panel array (Ng)
         :param n_panel_row: number of rows in the panel array (Mg)
         :param panel_v_spacing: vertical spacing between panels (i.e., space between panels of two consecutive rows
-                                in the same column) measured from the center of the panel
+                in the same column) measured from the center of the panel
         :param panel_h_spacing: horizontal spacing between panels (i.e., space between panels of two consecutive
-                                columns in the same row) measured from the center of the panel
+                columns in the same row) measured from the center of the panel
         :param n_antenna_col: number of antennas columns in the antenna array (i.e., within the panel) (N)
         :param n_antenna_row: number of antennas rows in the antenna array (i.e., within the panel) (M)
         :param antenna_v_spacing: vertical spacing between antennas
         :param antenna_h_spacing: horizontal spacing between antennas
         :param polarization: polarization, either 'single' or 'dual'
+        :param radiation_pattern_model: indicates the radiation pattern model that is used to generate the antenna
+                element pattern
         """
 
         # Pannels geometry
@@ -196,24 +221,24 @@ class AntennaPanel:
         self.polarization = polarization
         self.antenna_element = AntennaElement(radiation_pattern_model=radiation_pattern_model)
 
-        # Orientation
-        if bearing is None:     # alpha
-            # self.bearing_angle = np.random.uniform(0, 2 * np.pi)
-            self.bearing_angle = 0
-        else:
-            self.bearing_angle = bearing
-
-        if downtilt is None:    # beta
-            # self.downtilt_angle = np.random.uniform(0, 2 * np.pi)
-            self.downtilt_angle = 0
-        else:
-            self.downtilt_angle = downtilt
-
-        if slant is None:       # gamma
-            # self.slant = np.random.uniform(0, 2 * np.pi)
-            self.slant = 0
-        else:
-            self.slant = slant
+        # # Orientation
+        # if bearing is None:     # alpha
+        #     # self.bearing_angle = np.random.uniform(0, 2 * np.pi)
+        #     self.bearing_angle = 0
+        # else:
+        #     self.bearing_angle = bearing
+        #
+        # if downtilt is None:    # beta
+        #     # self.downtilt_angle = np.random.uniform(0, 2 * np.pi)
+        #     self.downtilt_angle = 0
+        # else:
+        #     self.downtilt_angle = downtilt
+        #
+        # if slant is None:       # gamma
+        #     # self.slant = np.random.uniform(0, 2 * np.pi)
+        #     self.slant = 0
+        # else:
+        #     self.slant = slant
 
         # Array location vector
         self._array_location_tensor = self.array_location_tensor
@@ -245,7 +270,7 @@ class AntennaPanel:
         """
         Computes the array_location_vector with shape (Mg*M, Ng*N, 3), where Mg*M and Ng*N are, respectively, the total
         number of antenna element rows and columns in the panel, and the last dimension contains the x, y, z location of
-        the respective antenna element. Ex: array_location_vector[u,v,:] = [x_uv, y_uv, y_uv] are the coordinates of the
+        the respective antenna element. Ex: array_location_vector[u,v,:] = [x_uv, y_uv, z_uv] are the coordinates of the
         element in the u-th row and v-th column of the panel.
         :return: array_location_vector
         """
@@ -258,7 +283,7 @@ class AntennaPanel:
         z_axis = np.array([p + a for p in np.arange(self.n_panel_col) * self.panel_v_spacing for a in
                            np.arange(self.n_antenna_col) * self.antenna_v_spacing])
 
-        A = np.meshgrid(y_axis, z_axis, indexing='xy')
+        A = np.meshgrid(y_axis, z_axis, indexing='ij')
 
         # Y-position
         self._array_location_tensor[:, :, 1] = A[0]
@@ -274,18 +299,6 @@ class AntennaPanel:
                                       self.n_panel_row * self.n_antenna_row * self.n_panel_col * self.n_antenna_col, 3))
         return self._array_location_vector
 
-    # @property
-    # def number_of_antenna_col(self):
-    #     return len(self.antenna_panels)
-    # 
-    # @property
-    # def number_of_antenna_row(self):
-    #     return len(self.antenna_panels)
-    # 
-    # @property
-    # def number_of_antenna(self):
-    #     return len(self.antenna_panels)
-
     def panel_field_pattern_vector(self, theta_gcs, phi_gcs, zeta):
         theta_lcs, phi_lcs = CoordinateSystem.GCS2LCS_angle(alpha=self.bearing_angle,
                                                             beta=self.downtilt_angle,
@@ -297,23 +310,91 @@ class AntennaPanel:
 
         return field_pattern_vector_lcs
 
+    @staticmethod
+    def set_default(n_panel_col: int = None, n_panel_row: int = None,
+                    panel_v_spacing: float = None, panel_h_spacing: float = None,
+                    n_antenna_col: int = None, n_antenna_row: int = None,
+                    antenna_v_spacing: float = None, antenna_h_spacing: float = None,
+                    polarization: str = None, radiation_pattern_model: str = None,
+                    bearing: float = None, downtilt: float = None, slant: float = None):
+        """
+        Create the antenna panel object. Each antenna panel contains an antenna array.
+        :param n_panel_col: number of columns in the panel array (Ng)
+        :param n_panel_row: number of rows in the panel array (Mg)
+        :param panel_v_spacing: vertical spacing between panels (i.e., space between panels of two consecutive rows
+                in the same column) measured from the center of the panel
+        :param panel_h_spacing: horizontal spacing between panels (i.e., space between panels of two consecutive
+                columns in the same row) measured from the center of the panel
+        :param n_antenna_col: number of antennas columns in the antenna array (i.e., within the panel) (N)
+        :param n_antenna_row: number of antennas rows in the antenna array (i.e., within the panel) (M)
+        :param antenna_v_spacing: vertical spacing between antennas
+        :param antenna_h_spacing: horizontal spacing between antennas
+        :param polarization: polarization, either 'single' or 'dual'
+        :param radiation_pattern_model: indicates the radiation pattern model that is used to generate the antenna
+                element pattern
+        """
+
+        if n_panel_col is not None:
+            AntennaPanel._default_n_panel_col = n_panel_col
+
+        if n_panel_row is not None:
+            AntennaPanel._default_n_panel_row = n_panel_row
+
+        if panel_v_spacing is not None:
+            AntennaPanel._default_panel_v_spacing = panel_v_spacing
+
+        if panel_h_spacing is not None:
+            AntennaPanel._default_panel_h_spacing = panel_h_spacing
+
+        if n_antenna_col is not None:
+            AntennaPanel._default_n_antenna_col = n_antenna_col
+
+        if n_antenna_row is not None:
+            AntennaPanel._default_n_antenna_row = n_antenna_row
+
+        if antenna_v_spacing is not None:
+            AntennaPanel._default_antenna_v_spacing = antenna_v_spacing
+
+        if antenna_h_spacing is not None:
+            AntennaPanel._default_antenna_h_spacing = antenna_h_spacing
+
+        if polarization is not None:
+            AntennaPanel._default_polarization = polarization
+
+        if radiation_pattern_model is not None:
+            AntennaPanel._default_radiation_pattern_model = radiation_pattern_model
+
+        if bearing is not None:
+            AntennaPanel._default_bearing = bearing
+
+        if downtilt is not None:
+            AntennaPanel._default_downtilt = downtilt
+
+        if slant is not None:
+            AntennaPanel._default_slant = slant
+
 
 class Sector:
+    """
+    Sector class defines each sector of a base-station; it contains information about the sector orientation (bearing,
+    downtilt, and slant angles), the Tx power, sector ID and corresponding base-station ID, operating frequency
+    """
     # Auto ID generation
     _sector_id = itertools.count()
 
     def __init__(self, bs_id: int,
-                 bearing: float = None, downtilt: float = None, slant: float = None,
-                 sector_width: float = 120,
-                 frequency_ghz: int = 3.5, tx_power_dBm: float = 30,
-                 antenna_panels: List[AntennaPanel] = []):
+                 bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = 120,
+                 frequency_ghz: float = 3.5, tx_power_dBm: float = 30, antenna_panels: List[AntennaPanel] = []):
         """
         Create sectors within a Base Station
         :param bs_id: Base Station ID
-        :param orientation: orientation of the sector center [degrees] > 0 points toward North
+        :param bearing: Bearing angle [degrees]
+        :param downtilt: Downtilt angle [degrees]
+        :param slant: Slant angle [degrees]
         :param sector_width: width of the sector [degrees]
         :param frequency_ghz: operation frequency of the sector [GHz]
         :param tx_power_dBm: transmission power [dBm]
+        :param antenna_panels: list of antenna panels (if empty, will create a default antenna pannel)
         """
         self.ID = next(Sector._sector_id)
         self.BS_ID = bs_id
@@ -354,7 +435,7 @@ class Sector:
         else:
             self.add_antenna_panel(AntennaPanel(bearing=self.bearing_angle,
                                                 downtilt=self.downtilt_angle,
-                                                slant=self.slant, ))
+                                                slant=self.slant))
 
     def add_antenna_panel(self, ant_panel: AntennaPanel):
         if ant_panel.__class__ == AntennaPanel:
@@ -362,10 +443,16 @@ class Sector:
 
     @property
     def number_of_antenna_panels(self):
+        """
+        :return: Number of antenna panels in the Sector
+        """
         return len(self.antenna_panels)
 
     @property
     def number_of_antennas(self):
+        """
+        :return: Total number of antenna elements in the Sector
+        """
         number_of_antennas = 0
         for panel in self.antenna_panels:
             number_of_antennas += panel.n_antenna_col * panel.n_panel_col * panel.n_antenna_row * panel.n_panel_row
@@ -373,6 +460,10 @@ class Sector:
 
 
 class BaseStation:
+    """
+    BaseStation class defines a base-station; it contains information about the sector orientation (bearing,
+    downtilt, and slant angles), the Tx power, sector ID and corresponding base-station ID, operating frequency
+    """
     # Auto ID generation
     _bs_id = itertools.count()
 
@@ -404,22 +495,35 @@ class BaseStation:
         # Initialize sectors
         self.sectors = []
         self.number_of_sectors = number_of_sectors
+        self.sector_width = 360 / number_of_sectors
         for sec in range(number_of_sectors):
             bearing = rotation + sec * 360 / number_of_sectors
-            sector_width = 360 / number_of_sectors
-            sector = Sector(bs_id=self.ID, bearing=bearing, sector_width=sector_width,
+
+            self.add_sector(bearing=bearing, downtilt=0, slant=0, sector_width=self.sector_width, frequency_ghz=3.5,
                             tx_power_dBm=self.tx_power_dBm)
-            print(f'Base Station {self.ID} - Sector {sector.ID}')
-            self.sectors.append(sector)
 
         # Update BS with Channel Frequency Information
         # Initialize frequency list:
         self._frequency_list = set()
 
-        #Update frequency list:
+        # Update frequency list:
         self._frequency_list = self.getBsFrequencyList()
 
+    def add_sector(self, bearing: float = None, downtilt: float = 0, slant: float = 0, sector_width: float = 120,
+                   frequency_ghz: float = 3.5, tx_power_dBm: float = 30,antenna_panels: List[AntennaPanel] = []):
+
+        sector = Sector(bs_id=self.ID, bearing=bearing, downtilt=0, slant=0, sector_width=self.sector_width,
+                        frequency_ghz=3.5, tx_power_dBm=self.tx_power_dBm)
+
+        print(f'Base Station {self.ID} - Sector {sector.ID}')
+
+        self.sectors.append(sector)
+
+
     def getBsFrequencyList(self):
+        """
+        :return: List of frequencies all Sectors associated with the Base Station
+        """
         self._frequency_list = set()
         for sector in self.sectors:
             if sector.frequency_ghz not in self._frequency_list:
@@ -428,6 +532,9 @@ class BaseStation:
         return self._frequency_list
 
     def get_sector_by_ID(self, ID):
+        """
+        :return: Return the sector with the input ID
+        """
         for sec_idx, sec in enumerate(self.sector):
             if sec.ID == ID:
                 return sec
@@ -436,11 +543,6 @@ class BaseStation:
 
 
 class UserEquipment:
-    # pos_x = float
-    # pos_y = float
-    # height = float
-    # location = ''
-    # los = ''
     _id_iter = itertools.count()
 
     def __init__(self, pos_x: float = 0, pos_y: float = 0, height: float = 1.5,
