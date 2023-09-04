@@ -10,12 +10,6 @@ import numpy.typing as npt
 
 light_speed = 299_792_458  # m/s
 
-# C_phi_NLOS_dict = {1: 0.200, 2: 0.500, 3: 0.699, 4: 0.779, 5: 0.860,
-#               6: 0.913, 7: 0.965, 8: 1.018, 9: 1.054, 10: 1.090,
-#               11: 1.123,12: 1.146, 13: 1.168, 14: 1.190, 15: 1.211,
-#               16: 1.226, 17: 1.242, 18: 1.257, 19: 1.273, 20: 1.289,
-#               21: 1.303, 22: 1.317, 23: 1.330, 24: 1.344, 25: 1.358}
-
 C_phi_NLOS_dict = {4: 0.779, 5: 0.860, 8: 1.018, 10: 1.090, 11: 1.123, 12: 1.146, 14: 1.190, 15: 1.211, 16: 1.226,
                    19: 1.273, 20: 1.289, 25: 1.358}
 
@@ -27,6 +21,19 @@ alpha_m = np.array([0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -
 subcluster_mapping = {0: [1, 2, 3, 4, 5, 6, 7, 8, 19, 20],
                       1: [9, 10, 11, 12, 17, 18],
                       2: [13, 14, 15, 16]}
+
+COMPUTE_ALL_FREQUENCIES = True
+
+
+class Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        else:
+            cls._instances[cls].__init__(*args, **kwargs)
+        return cls._instances[cls]
 
 
 class LOS(Enum):
@@ -45,8 +52,8 @@ class Location(Enum):
 
 # class POL(Enum):
 #     UNDETERMINED = 0
-#     CROSS = 1
-#     LINEAR = 2
+#     LINEAR = 1
+#     CROSS = 2
 
 
 @dataclass
@@ -125,6 +132,56 @@ class SmallScaleParameters:
     # K: float = 0.0      ## Only used in LOS
 
 
+class ChannelBands(metaclass=Singleton):
+    _center_frequency_ghz = 3.5
+    _channel_bandwidth_mhz = 10.0
+    _number_of_channels = 1
+
+    def __init__(cls, center_frequency_ghz: float = None, channel_bandwidth_mhz: float = None,
+                 number_of_channels: int = None):
+        if center_frequency_ghz is None:
+            cls.center_frequency_ghz = ChannelBands._center_frequency_ghz
+        else:
+            cls.center_frequency_ghz = center_frequency_ghz
+
+        if channel_bandwidth_mhz is None:
+            cls.channel_bandwidth_mhz = ChannelBands._channel_bandwidth_mhz
+        else:
+            cls.channel_bandwidth_mhz = channel_bandwidth_mhz
+
+        if number_of_channels is None:
+            cls.number_of_channels = ChannelBands._number_of_channels
+        else:
+            cls.number_of_channels = number_of_channels
+
+        ChannelBands._center_frequency_ghz = cls.center_frequency_ghz
+        ChannelBands._channel_bandwidth_mhz = cls.channel_bandwidth_mhz
+        ChannelBands._number_of_channels = cls.number_of_channels
+
+        cls._frequency_list = list()
+        cls.channel_bands = []
+        fc_start = cls.center_frequency_ghz \
+                   - ((cls.channel_bandwidth_mhz * 0.001 * cls.number_of_channels) / 2) \
+                   + (cls.channel_bandwidth_mhz * 0.001 / 2)
+
+        fc_end = cls.center_frequency_ghz \
+                 + ((cls.channel_bandwidth_mhz * 0.001 * cls.number_of_channels) / 2) \
+                 - (cls.channel_bandwidth_mhz * 0.001 / 2)
+
+        fc_list = np.linspace(start=fc_start, stop=fc_end, num=cls.number_of_channels)
+        for n in range(cls.number_of_channels):
+            fc = fc_list[n]
+            cls.channel_bands.append({'fc': fc, 'BW': cls.channel_bandwidth_mhz * 0.001})
+
+    @property
+    def frequency_list(cls):
+        cls._frequency_list = list()
+        for channel in cls.channel_bands:
+            cls._frequency_list.append(channel['fc'])
+
+        return cls._frequency_list
+
+
 class AntennaElement:
 
     def __init__(self, antenna_model='Model-2', radiation_pattern_model='3GPP'):
@@ -180,8 +237,8 @@ class AntennaPanel:
     _default_n_panel_row = 1
     _default_panel_v_spacing = 2
     _default_panel_h_spacing = 2
-    _default_n_antenna_col = 2
-    _default_n_antenna_row = 2
+    _default_n_antenna_col = 1
+    _default_n_antenna_row = 1
     _default_antenna_v_spacing = 0.5
     _default_antenna_h_spacing = 0.5
     _default_polarization = 2
@@ -324,25 +381,6 @@ class AntennaPanel:
         self.coordinate_system = CoordinateSystem
 
     def vector_field_transformation_from_gcs(self, theta_gcs, phi_gcs):
-        alpha = np.deg2rad(self.bearing_angle)
-        beta = np.deg2rad(self.downtilt_angle)
-        gamma = np.deg2rad(self.slant)
-
-        theta_lcs, phi_lcs = self.coordinate_system.GCS2LCS_angle(alpha=alpha, beta=beta, gamma=gamma,
-                                                                  theta=theta_gcs, phi=phi_gcs)
-
-        vector_field_transformation_matrix = self.coordinate_system.polarized_field_component_transformation_matrix(
-            alpha=alpha, beta=beta, gamma=gamma,
-            theta_lcs=theta_lcs, phi_lcs=phi_lcs,
-            theta_gcs=theta_gcs, phi_gcs=phi_gcs)
-
-        vector_field_gcs = np.matmul(vector_field_transformation_matrix,
-                                     self.antenna_element.field_pattern_vector(theta_lcs=theta_lcs, phi_lcs=phi_lcs,
-                                                                               zeta=0))
-
-        return vector_field_gcs
-
-    def vector_field_transformation_from_gcs_2(self, theta_gcs, phi_gcs):
         alpha = np.deg2rad(self.bearing_angle)
         beta = np.deg2rad(self.downtilt_angle)
         gamma = np.deg2rad(self.slant)
@@ -510,8 +548,11 @@ class Sector:
     _default_downtilt = 0.0
     _default_slant = 0.0
     _default_sector_width = 120.0
-    _default_frequency_ghz = 3.5
+    # _default_frequency_ghz = 3.5
     _default_tx_power_dBm = 30.0
+
+    # _channel_bands = ChannelBands()
+    # _default_frequency_ghz = _channel_bands.frequency_list[0]
 
     def __init__(self, bs_id: int,
                  bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = None,
@@ -529,6 +570,7 @@ class Sector:
         """
         self.ID = next(Sector._sector_id)
         self.BS_ID = bs_id
+
 
         # ##############################################################################################################
         # Orientation
@@ -567,8 +609,11 @@ class Sector:
         # ##############################################################################################################
         # Channel Frequency Info
         # ##############################################################################################################
-        if sector_width is None:
-            self.frequency_ghz = Sector._default_frequency_ghz
+        if frequency_ghz is None:
+            channel_bands = ChannelBands()
+            self.frequency_ghz = channel_bands.frequency_list[0]
+            # _default_frequency_ghz = channel_bands.frequency_list[0]
+            # self.frequency_ghz = Sector._default_frequency_ghz
         else:
             self.frequency_ghz = frequency_ghz
 
@@ -682,7 +727,7 @@ class BaseStation:
         for sec in range(number_of_sectors):
             bearing = rotation + sec * 360 / number_of_sectors
 
-            self.add_sector(bearing=bearing, downtilt=0, slant=0, sector_width=self.sector_width, frequency_ghz=3.5,
+            self.add_sector(bearing=bearing, downtilt=0, slant=0, sector_width=self.sector_width, frequency_ghz=None,
                             tx_power_dBm=self.tx_power_dBm)
 
         # Update BS with Channel Frequency Information
@@ -693,7 +738,7 @@ class BaseStation:
         self._frequency_list = self.getBsFrequencyList()
 
     def add_sector(self, bearing: float = None, downtilt: float = 0, slant: float = 0, sector_width: float = 120,
-                   frequency_ghz: float = 3.5, tx_power_dBm: float = 30, antenna_panels: List[AntennaPanel] = []):
+                   frequency_ghz: float = None, tx_power_dBm: float = None, antenna_panels: List[AntennaPanel] = []):
 
         sector = Sector(bs_id=self.ID, bearing=bearing, downtilt=downtilt, slant=slant, sector_width=sector_width,
                         frequency_ghz=frequency_ghz, tx_power_dBm=tx_power_dBm)
@@ -706,10 +751,16 @@ class BaseStation:
         """
         :return: List of frequencies all Sectors associated with the Base Station
         """
-        self._frequency_list = set()
+        # self._frequency_list = set()
+        # for sector in self.sectors:
+        #     if sector.frequency_ghz not in self._frequency_list:
+        #         self._frequency_list.add(sector.frequency_ghz)
+        #
+        # return self._frequency_list
+        self._frequency_list = list()
         for sector in self.sectors:
             if sector.frequency_ghz not in self._frequency_list:
-                self._frequency_list.add(sector.frequency_ghz)
+                self._frequency_list.append(sector.frequency_ghz)
 
         return self._frequency_list
 
@@ -902,12 +953,19 @@ class BsUeLink:
         self.frequency_independent_lsp = FrequencyIndependentLargeScaleParameters()
 
         # Frequency Dependent Large Scale Link Parameter Initialization
+        if COMPUTE_ALL_FREQUENCIES is True:
+            a = ChannelBands()
+            frequency_list = a.frequency_list
+        else:
+            frequency_list = bs.getBsFrequencyList()
+
         self.lspContainer = {}
-        for fc in bs.getBsFrequencyList():
+
+        for fc in frequency_list:
             self.lspContainer.setdefault(fc, FrequencyDependentLargeScaleParameters())
 
         self.sspContainer = {}
-        for fc in bs.getBsFrequencyList():
+        for fc in frequency_list:
             self.sspContainer.setdefault(fc, SmallScaleParameters())
 
         # Small Scale Link parameters
@@ -966,8 +1024,12 @@ class Network:
         # self.UE_tx_power_dBm = 18
         # self.UE_noise_floor_dB = -125
 
+        # Spectrum
+        channel_bands = ChannelBands(center_frequency_ghz=3.5, channel_bandwidth_mhz=10, number_of_channels=2)
+
         self._rsrp_matrix = np.array([])
         self.SINR_Matrix = np.array([])
+        self._rsrpServingCell = np.array([])
 
         # self.UE_attach_threshold = -140  # Todo: Use reasonable value
         self.UE_attach_threshold = -np.inf  # Todo: Use reasonable value
@@ -986,6 +1048,8 @@ class Network:
 
         # Coordinate System
         self.coordinate_system = CoordinateSystem
+
+
 
         # Random Generators
         self.random_seed = seed
@@ -1283,7 +1347,13 @@ class Network:
             ue_location = self.UEs[self._BsUeLink_container[link].ue_ID].location
 
             # Compute pathloss for each of the BS frequencies
-            for key_fc in self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList():
+            if COMPUTE_ALL_FREQUENCIES is True:
+                a = ChannelBands()
+                frequency_list = a.frequency_list
+            else:
+                frequency_list = self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList()
+
+            for key_fc in frequency_list:
                 fc = float(key_fc)
                 pathloss, sf = self.Pathloss(dist_2D=dist_2D, dist_3D=dist_3D, los=los, bs_height=bs_height,
                                              ue_height=ue_height, ue_location=ue_location, fc=fc)
@@ -1633,7 +1703,13 @@ class Network:
             self._BsUeLink_container[link].frequency_independent_lsp.K = link_LSP_dict['K']
 
             # Compute LSP for each of the BS frequencies
-            for key_fc in self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList():
+            if COMPUTE_ALL_FREQUENCIES is True:
+                a = ChannelBands()
+                frequency_list = a.frequency_list
+            else:
+                frequency_list = self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList()
+
+            for key_fc in frequency_list:
                 fc = float(key_fc)
 
                 link_LSP_dict = self._generate_frequency_dependent_link_LSP(correlated_TLSP, fc, los, dist_2D,
@@ -2897,7 +2973,14 @@ class Network:
             c_ZSA = self._BsUeLink_container[link].frequency_independent_lsp.c_ZSA
 
             # Compute LSP for each of the BS frequencies
-            for key_fc in self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList():
+            if COMPUTE_ALL_FREQUENCIES is True:
+                a = ChannelBands()
+                frequency_list = a.frequency_list
+            else:
+                frequency_list = self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList()
+
+            # frequency_list = self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList()
+            for key_fc in frequency_list:
                 ASA = self._BsUeLink_container[link].lspContainer[key_fc].ASA
                 ASD = self._BsUeLink_container[link].lspContainer[key_fc].ASD
                 ZSA = self._BsUeLink_container[link].lspContainer[key_fc].ZSA
@@ -2984,24 +3067,6 @@ class Network:
             M = self._BsUeLink_container[bs_ue_key].frequency_independent_lsp.M
             updated_N_cluster = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].updated_N_cluster
 
-            # c_DS = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].c_DS
-            # cluster_delay = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].cluster_delay
-            # cluster_delay_LOS = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].cluster_delay_LOS
-            # P_n = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].P_n
-            # phi_n_m_AOA = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].phi_n_m_AOA
-            # phi_n_m_AOD = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].phi_n_m_AOD
-            # theta_n_m_ZOA = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].theta_n_m_ZOA
-            # theta_n_m_ZOD = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].theta_n_m_ZOD
-            #
-            # Knm = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].Knm
-            # K = self._BsUeLink_container[bs_ue_key].frequency_independent_lsp.K
-            #
-            # # Get link LOS angles
-            # phi_LOS_AOA = np.rad2deg(self._BsUeLink_container[bs_ue_key].LOS_AOA_GCS)
-            # phi_LOS_AOD = np.rad2deg(self._BsUeLink_container[bs_ue_key].LOS_AOD_GCS)
-            # theta_LOS_ZOA = np.rad2deg(self._BsUeLink_container[bs_ue_key].LOS_ZOA_GCS)
-            # theta_LOS_ZOD = np.rad2deg(self._BsUeLink_container[bs_ue_key].LOS_ZOA_GCS)
-
             # Call Step 10: Coefficient generation - Draw initial random phases
             self._SectorUeLink_container[sector_ue_key].Phi_nm = self._draw_random_phases(updated_N_cluster, M)
 
@@ -3009,46 +3074,6 @@ class Network:
             # Generate channel coefficients for each cluster n and each Rx and Tx element pair u, s.
             self._generate_channel_coefficients(sector_ue_key)
 
-            # self._SectorUeLink_container[sector_ue_key].channel = self._generate_channel_coefficients(sector_ue_key)
-            #
-            # Get number of antennas
-            # Nr = self.UEs[ue_id].number_of_antennas
-            # Nt = sector.number_of_antennas
-            #
-            # lambda_0 = light_speed / (sector.frequency_ghz * 1E9)
-            #
-            # # d_rx = self.UEs[ue_id].antenna_panels[0].array_location_vector
-            # # d_tx = sector.antenna_panels[0].array_location_vector
-            #
-            # ue_velocity_ms = self.UEs[ue_id].velocity_ms
-            # ue_mobility_direction_phi = self.UEs[ue_id].mobility_direction_phi
-            # ue_mobility_direction_theta = self.UEs[ue_id].mobility_direction_theta
-            #
-            # Phi_nm = self._SectorUeLink_container[sector_ue_key].Phi_nm
-            #
-            # ue_antenna_panel = self.UEs[ue_id].antenna_panels[0]
-            # sector_antenna_panel = sector.antenna_panels[0]
-            #
-            # # Compute LOS/NLOS gain using Ricean Factor
-            # gain_LOS = 0.0
-            # K_R_linear = 10.0 ** (K / 10.0)
-            # if los == LOS.LOS:
-            #     gain_LOS = np.sqrt(K_R_linear / (K_R_linear + 1))
-            #     gain_NLOS = np.sqrt(1 / (K_R_linear + 1))
-            # else:
-            #     gain_NLOS = 1.0
-
-            # self._SectorUeLink_container[sector_ue_key].channel = self._generate_channel_coefficients(Nr=Nr, Nt=Nt,
-            #     updated_N_cluster=updated_N_cluster, lambda_0=lambda_0, los=los, d_rx=d_rx, d_tx=d_tx,
-            #     phi_LOS_AOA=phi_LOS_AOA, phi_LOS_AOD=phi_LOS_AOD,
-            #     theta_LOS_ZOA=theta_LOS_ZOA, theta_LOS_ZOD=theta_LOS_ZOD,
-            #     phi_n_m_AOA=phi_n_m_AOA, phi_n_m_AOD=phi_n_m_AOD,
-            #     theta_n_m_ZOA=theta_n_m_ZOA, theta_n_m_ZOD=theta_n_m_ZOD,
-            #     ue_velocity_ms=ue_velocity_ms, ue_mobility_direction_phi=ue_mobility_direction_phi,
-            #     ue_mobility_direction_theta=ue_mobility_direction_theta,
-            #     P_n=P_n, M=M, cluster_delay=cluster_delay, Knm=Knm, Phi_nm=Phi_nm,
-            #     gain_LOS=gain_LOS, gain_NLOS=gain_NLOS, c_DS=c_DS, ue_antenna_panel=ue_antenna_panel,
-            #     sector_antenna_panel=sector_antenna_panel)
 
     # Step 5: Generate Cluster Delay
     def _cluster_delay(self, los, r_tau, DS, K, Xn):
@@ -3204,145 +3229,6 @@ class Network:
 
         return Phi_nm
 
-    # # Step 11: Coefficient generation
-    # def _generate_channel_coefficients(self, Nr, Nt, updated_N_cluster, lambda_0, los, d_rx, d_tx,
-    #                                    phi_LOS_AOA, phi_LOS_AOD, theta_LOS_ZOA, theta_LOS_ZOD,
-    #                                    phi_n_m_AOA, phi_n_m_AOD, theta_n_m_ZOA, theta_n_m_ZOD,
-    #                                    ue_velocity_ms, ue_mobility_direction_phi, ue_mobility_direction_theta,
-    #                                    P_n, M, cluster_delay, Knm, Phi_nm, gain_LOS, gain_NLOS, c_DS, ue_antenna_panel,
-    #                                    sector_antenna_panel):
-    #
-    #     # Nr = self.UEs[ue_id].number_of_antennas
-    #     # Nt = sector.number_of_antennas
-    #     #
-    #     # lambda_0 = light_speed / (sector.frequency_ghz * 1E9)
-    #     #
-    #     # # d_rx = self.UEs[ue_id].antenna_panels[0].array_location_vector
-    #     # # d_tx = sector.antenna_panels[0].array_location_vector
-    #     #
-    #     # ue_velocity_ms = self.UEs[ue_id].velocity_ms
-    #     # ue_mobility_direction_phi = self.UEs[ue_id].mobility_direction_phi
-    #     # ue_mobility_direction_theta = self.UEs[ue_id].mobility_direction_theta
-    #     #
-    #     # Phi_nm = self._SectorUeLink_container[sector_ue_key].Phi_nm
-    #     #
-    #     # ue_antenna_panel = self.UEs[ue_id].antenna_panels[0]
-    #     # sector_antenna_panel = sector.antenna_panels[0]
-    #     #
-    #     # # Compute LOS/NLOS gain using Ricean Factor
-    #     # gain_LOS = 0.0
-    #     # K_R_linear = 10.0 ** (K / 10.0)
-    #     # if los == LOS.LOS:
-    #     #     gain_LOS = np.sqrt(K_R_linear / (K_R_linear + 1))
-    #     #     gain_NLOS = np.sqrt(1 / (K_R_linear + 1))
-    #     # else:
-    #     #     gain_NLOS = 1.0
-    #
-    #         d_rx = ue_antenna_panel.array_location_vector
-    #         d_tx = sector_antenna_panel.array_location_vector
-    #
-    #         n_U = Nr
-    #         n_S = Nt
-    #
-    #         r_rx_vel = ue_velocity_ms * np.array(
-    #             [np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.cos(np.deg2rad(ue_mobility_direction_phi)),
-    #              np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.sin(np.deg2rad(ue_mobility_direction_phi)),
-    #              np.cos(np.deg2rad(ue_mobility_direction_theta))]).T
-    #
-    #         # Todo: I should probably add a for over the number of polarizations here
-    #
-    #         if los == LOS.LOS:
-    #             HLOS = np.zeros((n_U, n_S), dtype=complex)
-    #             n = 0
-    #             PolM = np.array([[1, 0],
-    #                              [0, 1]])
-    #
-    #             r_rx_mn = np.array([np.sin(np.deg2rad(theta_LOS_ZOA)) * np.cos(np.deg2rad(phi_LOS_AOA)),
-    #                                 np.sin(np.deg2rad(theta_LOS_ZOA)) * np.sin(np.deg2rad(phi_LOS_AOA)),
-    #                                 np.cos(np.deg2rad(theta_LOS_ZOA))]).T
-    #             r_tx_mn = np.array([np.sin(np.deg2rad(theta_LOS_ZOD)) * np.cos(np.deg2rad(phi_LOS_AOD)),
-    #                                 np.sin(np.deg2rad(theta_LOS_ZOD)) * np.sin(np.deg2rad(phi_LOS_AOD)),
-    #                                 np.cos(np.deg2rad(theta_LOS_ZOD))]).T
-    #
-    #             Frx_u = ue_antenna_panel.vector_field_transformation_from_gcs(theta_LOS_ZOA, phi_LOS_AOA)
-    #             Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(theta_LOS_ZOD, phi_LOS_AOD)
-    #
-    #             exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-    #             for u in range(n_U):
-    #                 exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
-    #                 for s in range(n_S):
-    #                     exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-    #
-    #                     HLOS[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
-    #             channel.add_cluster(H=gain_LOS * HLOS, tau=cluster_delay[n])
-    #
-    #
-    #         # Compute r_tx_mn and r_rx_mn
-    #         r_rx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOA)) * np.cos(np.deg2rad(phi_n_m_AOA)),
-    #                             np.sin(np.deg2rad(theta_n_m_ZOA)) * np.sin(np.deg2rad(phi_n_m_AOA)),
-    #                             np.cos(np.deg2rad(theta_n_m_ZOA))]).T
-    #         r_tx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOD)) * np.cos(np.deg2rad(phi_n_m_AOD)),
-    #                             np.sin(np.deg2rad(theta_n_m_ZOD)) * np.sin(np.deg2rad(phi_n_m_AOD)),
-    #                             np.cos(np.deg2rad(theta_n_m_ZOD))]).T
-    #
-    #         exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-    #         exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx.T) / lambda_0)
-    #         exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx.T) / lambda_0)
-    #
-    #         for n in range(2, updated_N_cluster):
-    #             H_NLOS_temp = np.zeros((n_U, n_S), dtype=complex)
-    #
-    #             for m in range(M):
-    #                 PolM = np.array(
-    #                     [[np.exp(1j * Phi_nm[n, m, 0, 0]), np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 0, 1])],
-    #                      [np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 1, 0]), np.exp(1j * Phi_nm[n, m, 1, 0])]])
-    #
-    #                 Frx_u = ue_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
-    #                                                                               phi_n_m_AOA[n, m])
-    #                 Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
-    #                                                                                   phi_n_m_AOD[n, m])
-    #
-    #
-    #                 for u in range(n_U):
-    #                     for s in range(n_S):
-    #                         H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx[m,n,u] * exp_tx[m,n,s] * exp_vel[m,n]
-    #
-    #             H_NLOS_temp = np.sqrt(P_n[n] / M) * H_NLOS_temp
-    #             channel.add_cluster(H=H_NLOS_temp, tau=cluster_delay[n])
-    #
-    #         if los == LOS.LOS:
-    #             start_subcluster = 1
-    #         else:
-    #             start_subcluster = 0
-    #
-    #         delay_offset = np.array([0, 1.28 * c_DS, 2.56 * c_DS])
-    #         for n in [nn for nn in range(start_subcluster, 2) if nn <= (updated_N_cluster - 1)]:
-    #             H_NLOS_temp = np.zeros((n_U, n_S), dtype=complex)
-    #             for sub_cluster in range(3):
-    #                 # Make sure it won't go over the existing number of rays
-    #                 for m in [x for x in subcluster_mapping[sub_cluster] if x <= (M - 1)]:
-    #                     G = np.array([[1, np.sqrt(1 / Knm[n, m])], [np.sqrt(1 / Knm[n, m]), 1]])
-    #                     PolM = np.multiply(G, np.exp(1j * Phi_nm[n, m]))
-    #
-    #                     Frx_u = ue_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
-    #                                                                                   phi_n_m_AOA[n, m])
-    #                     Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
-    #                                                                                       phi_n_m_AOD[n, m])
-    #
-    #                     for u in range(n_U):
-    #                         for s in range(n_S):
-    #                             H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) \
-    #                                                  * exp_rx[m, n, u] * exp_tx[m, n, s] * exp_vel[m, n]
-    #
-    #                 H_NLOS_temp = np.sqrt(P_n[n] / M) * H_NLOS_temp
-    #                 channel.add_cluster(H=gain_NLOS * H_NLOS_temp, tau=cluster_delay[n] + 1E-9 * delay_offset[sub_cluster])
-    #
-    #         # TODO: Will need to change the computation of field vector to include polarization and this should double
-    #         #       the number of elements in the channel
-    #
-    #         return channel
-
-    # Step 11: Coefficient generation
     def _generate_channel_coefficients(self, sector_ue_link_id):
 
         sector_id, ue_id = sector_ue_link_id
@@ -3402,9 +3288,6 @@ class Network:
         Nt = sector.number_of_antennas
         n_U = Nr
         n_S = Nt
-
-        # Initialize channel
-        # channel = Channel(Nr=Nr, Nt=Nt)
 
         # Initialize array location vector
         d_rx = ue_antenna_panel.array_location_vector
@@ -3634,7 +3517,7 @@ class Network:
 
         # w = np.zeros(Ns)
         # w[0] = 1
-        w = np.ones(Ns)
+        w = (1/np.sqrt(Ns)) * np.ones(Ns)
         acc = 0.0
 
         if los is LOS.LOS:
@@ -3714,13 +3597,15 @@ class Network:
             else:
                 self.SINR_Matrix[ue.ID] = -np.inf
 
-    # @property
-    # def cellSectorMap(self):
-    #     self._cellSectorMap = []
-    #     for bs in self.BSs:
-    #         self._cellSectorMap += [None] * bs.number_of_sectors
-    #         for sec in bs.sector:
-    #             self._cellSectorMap[sec.ID] = bs.ID
+    def rsrpServingCell(self):
+        self._rsrpServingCell = np.zeros(len(self.UEs))
+
+        for ue in self.UEs:
+            if (ue.serving_sector is not None) and (ue.serving_base_station is not None):
+
+                self._rsrpServingCell[ue.ID] = self._SectorUeLink_container[(ue.serving_sector, ue.ID)].RSRP
+
+        return self._rsrpServingCell
 
     @property
     def number_of_ue(self):
