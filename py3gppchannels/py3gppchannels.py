@@ -26,6 +26,9 @@ C_theta_NLOS_dict = {8: 0.889, 10: 0.957, 11: 1.031, 12: 1.104, 15: 1.1088,
 alpha_m = np.array([0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129,
                     0.6797, -0.6797, 0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551])
 
+subcluster_mapping = {0: [1, 2, 3, 4, 5, 6, 7, 8, 19, 20],
+                      1: [9, 10, 11, 12, 17, 18],
+                      2: [13, 14, 15, 16]}
 
 class LOS(Enum):
     UNDETERMINED = 0
@@ -39,6 +42,12 @@ class Location(Enum):
     Indoor = 1
     Outdoor = 2
     Car = 3
+
+
+# class POL(Enum):
+#     UNDETERMINED = 0
+#     CROSS = 1
+#     LINEAR = 2
 
 
 @dataclass
@@ -68,7 +77,7 @@ class FrequencyDependentLargeScaleParameters:
     theta_n_m_ZOD: npt.ArrayLike = np.array([])
     ray_mapping_AoD_AoA: npt.ArrayLike = np.array([])
     ray_mapping_ZoD_ZoA: npt.ArrayLike = np.array([])
-    ray_mapping_AoD_ZoA: npt.ArrayLike = np.array([])
+    ray_mapping_AoD_ZoD: npt.ArrayLike = np.array([])
     Knm: npt.ArrayLike = np.array([])
 
 
@@ -115,6 +124,7 @@ class SmallScaleParameters:
     # mu_XPR: float = 0.0
     # sigma_xpr: float = 0.0
     # K: float = 0.0      ## Only used in LOS
+
 
 
 class AntennaElement:
@@ -182,14 +192,13 @@ class AntennaPanel:
     _default_downtilt = 0.0
     _default_slant = 0.0
 
-    def __init__(self, n_panel_col: int = _default_n_panel_col, n_panel_row: int = _default_n_panel_row,
-                 panel_v_spacing: float = _default_panel_v_spacing, panel_h_spacing: float = _default_panel_h_spacing,
-                 n_antenna_col: int = _default_n_antenna_col, n_antenna_row: int = _default_n_antenna_row,
-                 antenna_v_spacing: float = _default_antenna_v_spacing,
-                 antenna_h_spacing: float = _default_antenna_h_spacing,
-                 polarization: str = _default_polarization,
-                 radiation_pattern_model: str = _default_radiation_pattern_model,
-                 bearing: float = _default_bearing, downtilt: float = _default_downtilt, slant: float = _default_slant):
+    def __init__(self, n_panel_col: int = None, n_panel_row: int = None,
+                 panel_v_spacing: float = None, panel_h_spacing: float = None,
+                 n_antenna_col: int = None, n_antenna_row: int = None,
+                 antenna_v_spacing: float = None, antenna_h_spacing: float = None,
+                 polarization: str = None,
+                 radiation_pattern_model: str = None,
+                 bearing: float = None, downtilt: float = None, slant: float = None):
         """
         Create the antenna panel object. Each antenna panel contains an antenna array.
         :param n_panel_col: number of columns in the panel array (Ng)
@@ -206,44 +215,97 @@ class AntennaPanel:
         :param radiation_pattern_model: indicates the radiation pattern model that is used to generate the antenna
                 element pattern
         """
+        # ##############################################################################################################
+        # Panel geometry
+        # ##############################################################################################################
+        if n_panel_col is None:
+            self.n_panel_col = AntennaPanel._default_n_panel_col
+        else:
+            self.n_panel_col = n_panel_col
 
-        # Pannels geometry
-        self.n_panel_col = n_panel_col  # Ng
-        self.n_panel_row = n_panel_row  # Mg
-        self.panel_v_spacing = panel_v_spacing
-        self.panel_h_spacing = panel_h_spacing
+        if n_panel_row is None:
+            self.n_panel_row = AntennaPanel._default_n_panel_row
+        else:
+            self.n_panel_row = n_panel_row
 
+        if panel_v_spacing is None:
+            self.panel_v_spacing = AntennaPanel._default_panel_v_spacing
+        else:
+            self.panel_v_spacing = panel_v_spacing
+
+        if panel_h_spacing is None:
+            self.panel_h_spacing = AntennaPanel._default_panel_h_spacing
+        else:
+            self.panel_h_spacing = panel_h_spacing
+
+        # ##############################################################################################################
         # Array geometry
-        self.n_antenna_col = n_antenna_col  # N
-        self.n_antenna_row = n_antenna_row  # M
-        self.antenna_v_spacing = antenna_v_spacing
-        self.antenna_h_spacing = antenna_h_spacing
-        self.polarization = polarization
-        self.antenna_element = AntennaElement(radiation_pattern_model=radiation_pattern_model)
+        # ##############################################################################################################
+        if n_antenna_col is None:
+            self.n_antenna_col = AntennaPanel._default_n_antenna_col
+        else:
+            self.n_antenna_col = n_antenna_col
 
-        # # Orientation
-        # if bearing is None:     # alpha
-        #     # self.bearing_angle = np.random.uniform(0, 2 * np.pi)
-        #     self.bearing_angle = 0
-        # else:
-        #     self.bearing_angle = bearing
-        #
-        # if downtilt is None:    # beta
-        #     # self.downtilt_angle = np.random.uniform(0, 2 * np.pi)
-        #     self.downtilt_angle = 0
-        # else:
-        #     self.downtilt_angle = downtilt
-        #
-        # if slant is None:       # gamma
-        #     # self.slant = np.random.uniform(0, 2 * np.pi)
-        #     self.slant = 0
-        # else:
-        #     self.slant = slant
+        if n_antenna_row is None:
+            self.n_antenna_row = AntennaPanel._default_n_antenna_row
+        else:
+            self.n_antenna_row = n_antenna_row
 
+        if antenna_v_spacing is None:
+            self.antenna_v_spacing = AntennaPanel._default_antenna_v_spacing
+        else:
+            self.antenna_v_spacing = antenna_v_spacing
+
+        if antenna_h_spacing is None:
+            self.antenna_h_spacing = AntennaPanel._default_antenna_h_spacing
+        else:
+            self.antenna_h_spacing = antenna_h_spacing
+
+        if polarization is None:
+            self.polarization = AntennaPanel._default_polarization
+        else:
+            self.polarization = polarization
+
+        # ##############################################################################################################
+        # Orientation
+        # ##############################################################################################################
+        if bearing is None:     # alpha
+            # self.bearing_angle = np.random.uniform(0, 2 * np.pi)
+            self.bearing_angle = 0.0
+        else:
+            self.bearing_angle = bearing
+
+        if downtilt is None:    # beta
+            # self.downtilt_angle = np.random.uniform(0, 2 * np.pi)
+            self.downtilt_angle = 0.0
+        else:
+            self.downtilt_angle = downtilt
+
+        if slant is None:       # gamma
+            # self.slant = np.random.uniform(0, 2 * np.pi)
+            self.slant = 0.0
+        else:
+            self.slant = slant
+
+        # ##############################################################################################################
+        # Antenna Element
+        # ##############################################################################################################
+        if radiation_pattern_model is None:
+            self.radiation_pattern_model = AntennaPanel._default_radiation_pattern_model
+        else:
+            self.radiation_pattern_model = radiation_pattern_model
+
+        self.antenna_element = AntennaElement(radiation_pattern_model=self.radiation_pattern_model)
+
+        # ##############################################################################################################
         # Array location vector
+        # ##############################################################################################################
         self._array_location_tensor = self.array_location_tensor
         self._array_location_vector = self.array_location_vector
 
+        # ##############################################################################################################
+        # Coordinate System
+        # ##############################################################################################################
         self.coordinate_system = CoordinateSystem
 
     def vector_field_transformation_from_gcs(self, theta_gcs, phi_gcs):
@@ -332,6 +394,9 @@ class AntennaPanel:
         :param polarization: polarization, either 'single' or 'dual'
         :param radiation_pattern_model: indicates the radiation pattern model that is used to generate the antenna
                 element pattern
+        :param bearing: bearing angle
+        :param downtilt: downtilt angle
+        :param slant: slant angle
         """
 
         if n_panel_col is not None:
@@ -374,6 +439,19 @@ class AntennaPanel:
             AntennaPanel._default_slant = slant
 
 
+# class Beamforming:
+#     def __init__(self, antenna_panel: AntennaPanel, beamforming_type='dft'):
+#         Ng = antenna_panel.n_panel_col
+#         Mg = antenna_panel.n_panel_row
+#         dg_V = antenna_panel.panel_v_spacing
+#         dg_H = antenna_panel.panel_h_spacing
+#         N = antenna_panel.n_antenna_col
+#         M = antenna_panel.n_antenna_row
+#         d_v = antenna_panel.antenna_v_spacing
+#         d_H = antenna_panel.antenna_h_spacing
+#         pol = antenna_panel.polarization
+#         self.codebook = np.zeros
+
 class Sector:
     """
     Sector class defines each sector of a base-station; it contains information about the sector orientation (bearing,
@@ -382,9 +460,17 @@ class Sector:
     # Auto ID generation
     _sector_id = itertools.count()
 
+    _default_bearing = 0.0
+    _default_downtilt = 0.0
+    _default_slant = 0.0
+    _default_sector_width = 120.0
+    _default_frequency_ghz = 3.5
+    _default_tx_power_dBm = 30.0
+
+
     def __init__(self, bs_id: int,
-                 bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = 120,
-                 frequency_ghz: float = 3.5, tx_power_dBm: float = 30, antenna_panels: List[AntennaPanel] = []):
+                 bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = None,
+                 frequency_ghz: float = None, tx_power_dBm: float = None, antenna_panels: List[AntennaPanel] = []):
         """
         Create sectors within a Base Station
         :param bs_id: Base Station ID
@@ -394,41 +480,56 @@ class Sector:
         :param sector_width: width of the sector [degrees]
         :param frequency_ghz: operation frequency of the sector [GHz]
         :param tx_power_dBm: transmission power [dBm]
-        :param antenna_panels: list of antenna panels (if empty, will create a default antenna pannel)
+        :param antenna_panels: list of antenna panels (if empty, will create a default antenna panel)
         """
         self.ID = next(Sector._sector_id)
         self.BS_ID = bs_id
 
+        # ##############################################################################################################
         # Orientation
+        # ##############################################################################################################
         if bearing is None:  # alpha
-            # self.bearing_angle = np.random.uniform(0, 2 * np.pi)
-            self.bearing_angle = 0
+            self.bearing_angle = Sector._default_bearing
         else:
             self.bearing_angle = bearing
 
         if downtilt is None:  # beta
-            # self.downtilt_angle = np.random.uniform(0, 2 * np.pi)
-            self.downtilt_angle = 0
+            self.downtilt_angle = Sector._default_downtilt
         else:
             self.downtilt_angle = downtilt
 
         if slant is None:  # gamma
-            # self.slant = np.random.uniform(0, 2 * np.pi)
-            self.slant = 0
+            self.slant = Sector._default_slant
         else:
             self.slant = slant
 
-        # Network Information
+        # ##############################################################################################################
+        # Sector Width
+        # ##############################################################################################################
+        if sector_width is None:
+            self.sector_width = Sector._default_sector_width
+        else:
+            self.sector_width = sector_width
+
+        # ##############################################################################################################
+        # Transmitted Power
+        # ##############################################################################################################
         if tx_power_dBm is None:
-            self.tx_power_dBm = -23
+            self.tx_power_dBm = Sector._default_tx_power_dBm
         else:
             self.tx_power_dBm = tx_power_dBm
 
+        # ##############################################################################################################
         # Channel Frequency Info
-        self.sector_width = sector_width
-        self.frequency_ghz = frequency_ghz
-        self.number_of_PRBs = 100  # 20 MHz channel with SCS 15 KHz (LTE)
+        # ##############################################################################################################
+        if sector_width is None:
+            self.frequency_ghz = Sector._default_frequency_ghz
+        else:
+            self.frequency_ghz = frequency_ghz
 
+        # ##############################################################################################################
+        # Antenna Panel
+        # ##############################################################################################################
         self.antenna_panels = antenna_panels
         if antenna_panels:
             self.antenna_panels = antenna_panels
@@ -436,6 +537,8 @@ class Sector:
             self.add_antenna_panel(AntennaPanel(bearing=self.bearing_angle,
                                                 downtilt=self.downtilt_angle,
                                                 slant=self.slant))
+
+        self.number_of_PRBs = 100  # 20 MHz channel with SCS 15 KHz (LTE)
 
     def add_antenna_panel(self, ant_panel: AntennaPanel):
         if ant_panel.__class__ == AntennaPanel:
@@ -457,6 +560,36 @@ class Sector:
         for panel in self.antenna_panels:
             number_of_antennas += panel.n_antenna_col * panel.n_panel_col * panel.n_antenna_row * panel.n_panel_row
         return number_of_antennas
+
+    @staticmethod
+    def set_default(bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = None,
+                    frequency_ghz: float = None, tx_power_dBm: float = None):
+        """
+        :param bearing: Bearing angle [degrees]
+        :param downtilt: Downtilt angle [degrees]
+        :param slant: Slant angle [degrees]
+        :param sector_width: width of the sector [degrees]
+        :param frequency_ghz: operation frequency of the sector [GHz]
+        :param tx_power_dBm: transmission power [dBm]
+        """
+
+        if bearing is not None:
+            AntennaPanel._default_bearing = bearing
+
+        if downtilt is not None:
+            AntennaPanel._default_downtilt = downtilt
+
+        if slant is not None:
+            AntennaPanel._default_slant = slant
+
+        if sector_width is not None:
+            AntennaPanel._default_sector_width = sector_width
+
+        if frequency_ghz is not None:
+            AntennaPanel._default_frequency_ghz = frequency_ghz
+
+        if tx_power_dBm is not None:
+            AntennaPanel._default_tx_power_dBm = tx_power_dBm
 
 
 class BaseStation:
@@ -491,7 +624,6 @@ class BaseStation:
         else:
             self.tx_power_dBm = tx_power_dBm
 
-
         # Initialize sectors
         self.sectors = []
         self.number_of_sectors = number_of_sectors
@@ -519,7 +651,6 @@ class BaseStation:
 
         self.sectors.append(sector)
 
-
     def getBsFrequencyList(self):
         """
         :return: List of frequencies all Sectors associated with the Base Station
@@ -535,7 +666,7 @@ class BaseStation:
         """
         :return: Return the sector with the input ID
         """
-        for sec_idx, sec in enumerate(self.sector):
+        for sec_idx, sec in enumerate(self.sectors):
             if sec.ID == ID:
                 return sec
         else:
@@ -545,10 +676,18 @@ class BaseStation:
 class UserEquipment:
     _id_iter = itertools.count()
 
-    def __init__(self, pos_x: float = 0, pos_y: float = 0, height: float = 1.5,
+    _default_height = 1.5
+    _default_location = Location.Outdoor
+    _default_tx_power_dBm = 23.0
+    _default_noise_floor = -125.0
+    _default_sector_width = 120.0
+    _default_frequency_ghz = 3.5
+    _default_mobility_speed_kmh = 3.0
+
+    def __init__(self, pos_x: float = 0, pos_y: float = 0, height: float = None,
                  bearing: float = None, downtilt: float = None, slant: float = None,
                  location: Location = Location.Outdoor, tx_power_dBm: float = None, noise_floor: float = -125,
-                 antenna_panels: List[AntennaPanel] = None, mobility_speed_kmh: float = 3):
+                 antenna_panels: List[AntennaPanel] = None, mobility_speed_kmh: float = None):
         """
         Create User Equipment (UE)
         :param pos_x: position of the UE in the x axis [meters]
@@ -561,13 +700,23 @@ class UserEquipment:
 
         self.ID = next(UserEquipment._id_iter)
 
+        # ##############################################################################################################
         # Positioning
+        # ##############################################################################################################
         self.pos_x = pos_x
         self.pos_y = pos_y
+
+        if height is None:
+            self.height = UserEquipment._default_height
+        else:
+            self.height = height
+
         self.height = height
         self.location = location
 
+        # ##############################################################################################################
         # Orientation
+        # ##############################################################################################################
         if bearing is None:
             self.bearing_angle = np.random.uniform(0, 2 * np.pi)  # Omega_UE_alpha
         else:
@@ -583,17 +732,35 @@ class UserEquipment:
         else:
             self.slant = slant
 
-        # Network Information
+        # ##############################################################################################################
+        # Transmit Power
+        # ##############################################################################################################
         if tx_power_dBm is None:
-            self.tx_power_dBm = 23
+            self.tx_power_dBm = UserEquipment._default_tx_power_dBm
         else:
             self.tx_power_dBm = tx_power_dBm
 
+        # ##############################################################################################################
+        # Mobility
+        # ##############################################################################################################
+        if mobility_speed_kmh is None:
+            self.mobility_speed_kmh = UserEquipment._default_mobility_speed_kmh
+        else:
+            self.mobility_speed_kmh = mobility_speed_kmh
+
+        # Mobility
+        self.velocity_ms = self.mobility_speed_kmh * 1000 / 3600  # 3 km/h
+        self.mobility_direction_phi = np.random.uniform(0, 2 * np.pi)
+        self.mobility_direction_theta = 90
+
+        # ##############################################################################################################
+        # Network Info
+        # ##############################################################################################################
         self.serving_sector = None
         self.serving_base_station = None
         self.neighbor_cells = []
-        self.noise_floor = noise_floor  # dB
-        # self.LSP = []
+        self.noise_floor = UserEquipment._default_noise_floor  # dB
+
 
         # self.antenna_panels = antenna_panels
         self.antenna_panels = []
@@ -602,10 +769,7 @@ class UserEquipment:
         else:
             self.add_antenna_panel(AntennaPanel())
 
-        # Mobility
-        self.velocity_ms = mobility_speed_kmh * 1000 / 3600  # 3 km/h
-        self.mobility_direction_phi = np.random.uniform(0, 2 * np.pi)
-        self.mobility_direction_theta = 90
+
 
     def add_antenna_panel(self, ant_panel: AntennaPanel):
         if ant_panel.__class__ == AntennaPanel:
@@ -621,7 +785,7 @@ class UserEquipment:
         for panel in self.antenna_panels:
             number_of_antennas += panel.n_antenna_col * panel.n_panel_col * panel.n_antenna_row * panel.n_panel_row
         return number_of_antennas
-    #
+
     # @property
     # def number_of_antennas_col(self):
     #     number_of_antennas = 0
@@ -686,12 +850,12 @@ class BsUeLink:
             self.sspContainer.setdefault(fc, SmallScaleParameters())
 
         # Small Scale Link parameters
-        self.AOD_nm = None
-        self.ZOD_nm = None
-        self.AOA_nm = None
-        self.ZOA_nm = None
-        self.ray_coupling = None
-        self.cross_pol_power_ratio = None
+        # self.AOD_nm = None
+        # self.ZOD_nm = None
+        # self.AOA_nm = None
+        # self.ZOA_nm = None
+        # self.ray_coupling = None
+        # self.cross_pol_power_ratio = None
 
 
 class Channel:
@@ -1295,9 +1459,10 @@ class Network:
 
     def NetworkLargeScaleParameters(self):
         # if True:
-            self._large_scale_parameter_correlation_method_three()
+        #     self._large_scale_parameter_correlation_method_three()
         # else:
         #     self._large_scale_parameter_correlation_method_two()
+        self._large_scale_parameter_correlation_method_three()
 
     def _large_scale_parameter_correlation_method_two(self):
         # Method 2: Create grid; 2D-filter normal iid points in the grid; use filtered values to compute LSP
@@ -1849,710 +2014,6 @@ class Network:
         C = C + C.T + np.eye(len(LSP_list))
 
         return C, delta_m, LSP_list
-
-    # def _generateLinkLSP(self, correlated_TLSP, fc, los, dist_2D, bs_height, ue_height):
-    #     # Large Scale Parameters (LSP) for different BS-UE links are uncorrelated, but the LSPs for links from co-sited
-    #     # sectors to a UE are the same. In addition, LSPs for the links of UEs on different floors are uncorrelated.
-    #
-    #     # Initialize parameters:
-    #     mu_lg_DS = 0.0
-    #     sigma_lg_DS = 0.0
-    #     mu_lg_ASA = 0.0
-    #     sigma_lg_ASA = 0.0
-    #     mu_lg_ASD = 0.0
-    #     sigma_lg_ASD = 0.0
-    #     mu_lg_ZSA = 0.0
-    #     sigma_lg_ZSA = 0.0
-    #     mu_lg_ZSD = 0.0
-    #     sigma_lg_ZSD = 0.0
-    #     mu_K = 0.0
-    #     sigma_K = 0.0
-    #     sigma_SF = 0.0
-    #
-    #     # Compute parameters according to scenario
-    #
-    #     if self.scenario == 'UMi':
-    #         # Frequency correction - see NOTE 7 from Table 7.5-6
-    #         if fc < 2.0:
-    #             fc = 2.0
-    #
-    #         if los == LOS.LOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -0.24 * np.log10(1 + fc) - 7.14
-    #             sigma_lg_DS = 0.38
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = -0.05 * np.log10(1 + fc) + 1.21
-    #             sigma_lg_ASD = 0.41
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = -0.08 * np.log10(1 + fc) + 1.73
-    #             sigma_lg_ASA = 0.014 * np.log10(1 + fc) + 0.28
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = -0.1 * np.log10(1 + fc) + 0.73
-    #             sigma_lg_ZSA = -0.04 * np.log10(1 + fc) + 0.34
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-0.21, -14.8 * (dist_2D / 1000) + 0.01 * np.abs(ue_height - 1.5) + 0.83)
-    #             sigma_lg_ZSD = 0.35
-    #             mu_offset_ZOD = 0
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 4
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = 9
-    #             sigma_K = 5
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 3
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 9
-    #             sigma_xpr = 3
-    #
-    #             # Number of clusters
-    #             N = 12
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = 5
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 3
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 17
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 7
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 7
-    #
-    #         if los == LOS.NLOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -0.24 * np.log10(1 + fc) - 6.83
-    #             sigma_lg_DS = 0.16 * np.log10(1 + fc) + 0.28
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = -0.23 * np.log10(1 + fc) + 1.53
-    #             sigma_lg_ASD = 0.11 * np.log10(1 + fc) + 0.33
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = -0.08 * np.log10(1 + fc) + 1.81
-    #             sigma_lg_ASA = 0.05 * np.log10(1 + fc) + 0.3
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = -0.04 * np.log10(1 + fc) + 0.92
-    #             sigma_lg_ZSA = -0.07 * np.log10(1 + fc) + 0.41
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-0.5,
-    #                                    -3.1 * (dist_2D / 1000) + 0.01 * np.maximum(ue_height - bs_height, 0) + 0.2)
-    #             sigma_lg_ZSD = 0.35
-    #             mu_offset_ZOD = -10 ** (-1.5 * np.log10(np.maximum(10, dist_2D)) + 3.3)
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 7.84
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = None
-    #             sigma_K = None
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 2.1
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 8.0
-    #             sigma_xpr = 3
-    #
-    #             # Number of clusters
-    #             N = 19
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = 11
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 10
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 22
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 7
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 7
-    #
-    #         if los == LOS.O2I:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -6.62
-    #             sigma_lg_DS = 0.32
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 1.25
-    #             sigma_lg_ASD = 0.42
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.76
-    #             sigma_lg_ASA = 0.16
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 1.01
-    #             sigma_lg_ZSA = 0.43
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 7
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = None
-    #             sigma_K = None
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 2.2
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 9.0
-    #             sigma_xpr = 5
-    #
-    #             # Number of clusters
-    #             N = 12
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = 11
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 5
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 8
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 3
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 4
-    #
-    #     if self.scenario == 'UMa':
-    #         # Frequency correction - see NOTE 6 from Table 7.5-6 Part-1
-    #         if fc < 6.0:
-    #             fc = 6.0
-    #
-    #         if los == LOS.LOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -6.955 - 0.0963 * np.log10(fc)
-    #             sigma_lg_DS = 0.66
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 1.06 + 0.1114 * np.log10(fc)
-    #             sigma_lg_ASD = 0.28
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.81
-    #             sigma_lg_ASA = 0.20
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 0.95
-    #             sigma_lg_ZSA = 0.16
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-0.5,
-    #                                    -2.1 * (dist_2D / 1000) - 0.01 * (
-    #                                            ue_height - 1.5) + 0.75)
-    #             sigma_lg_ZSD = 0.4
-    #             mu_offset_ZOD = 0
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 4
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = 9
-    #             sigma_K = 3.5
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 2.5
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 8
-    #             sigma_xpr = 4
-    #
-    #             # Number of clusters
-    #             N = 12
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = max(0.25, 6.5622 - 3.4084 * np.log10(fc))
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 5
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 11
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 7
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 3
-    #
-    #         if los == LOS.NLOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -6.28 - 0.204 * np.log10(fc)
-    #             sigma_lg_DS = 0.39
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 1.5 - 0.1144 * np.log10(fc)
-    #             sigma_lg_ASD = 0.28
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.5 - 0.1144 * np.log10(fc)
-    #             sigma_lg_ASA = 0.20
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 0.95
-    #             sigma_lg_ZSA = 0.16
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-0.5,
-    #                                    -2.1 * (dist_2D / 1000) - 0.01 * (
-    #                                            ue_height - 1.5) + 0.9)
-    #             sigma_lg_ZSD = 0.49
-    #             mu_offset_ZOD = (7.66 * np.log10(fc) - 5.96) - 10 ** (
-    #                     (0.208 * np.log10(fc) - 0.782) * np.log10(np.maximum(25, dist_2D))
-    #                     - 0.13 * np.log10(fc) + 2.03 - 0.07 * (ue_height - 1.5))
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 6
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = 9
-    #             sigma_K = 3.5
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 2.5
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 8
-    #             sigma_xpr = 4
-    #
-    #             # Number of clusters
-    #             N = 12
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = max(0.25, 6.5622 - 3.4084 * np.log10(fc))
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 5
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 11
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 7
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 3
-    #
-    #         if los == LOS.O2I:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -6.62
-    #             sigma_lg_DS = 0.32
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 1.25
-    #             sigma_lg_ASD = 0.42
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.76
-    #             sigma_lg_ASA = 0.16
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 1.01
-    #             sigma_lg_ZSA = 0.43
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 7
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = None
-    #             sigma_K = None
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 2.2
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 9.0
-    #             sigma_xpr = 5
-    #
-    #             # Number of clusters
-    #             N = 12
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = 11
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 5
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 8
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 3
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 4
-    #
-    #     if self.scenario == 'RMa':
-    #         if los == LOS.LOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -7.49
-    #             sigma_lg_DS = 0.55
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 0.90
-    #             sigma_lg_ASD = 0.38
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.52
-    #             sigma_lg_ASA = 0.24
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 0.47
-    #             sigma_lg_ZSA = 0.40
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-1, -0.17 * (dist_2D / 1000) - 0.01 * (
-    #                     ue_height - bs_height) + 0.22)
-    #             sigma_lg_ZSD = 0.34
-    #             mu_offset_ZOD = 0
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 4  # or 6
-    #             # Todo: do checks (may vary)
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = 7
-    #             sigma_K = 4
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 3.8
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 12
-    #             sigma_xpr = 4
-    #
-    #             # Number of clusters
-    #             N = 11
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = None
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 2
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 3
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 3
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 3
-    #
-    #         if los == LOS.NLOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -7.43
-    #             sigma_lg_DS = 0.48
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 0.95
-    #             sigma_lg_ASD = 0.45
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.52
-    #             sigma_lg_ASA = 0.13
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 0.58
-    #             sigma_lg_ZSA = 0.37
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-1, -0.19 * (dist_2D / 1000) - 0.01 * (
-    #                     ue_height - bs_height) + 0.28)
-    #             sigma_lg_ZSD = 0.30
-    #             mu_offset_ZOD = np.arctan((35 - 3.5) / dist_2D) - np.arctan(
-    #                 (35 - 1.5) / dist_2D)
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 8
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = None
-    #             sigma_K = None
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 1.7
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 7
-    #             sigma_xpr = 3
-    #
-    #             # Number of clusters
-    #             N = 10
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = None
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 2
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 3
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 3
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 3
-    #
-    #         if los == LOS.O2I:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -7.47
-    #             sigma_lg_DS = 0.24
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 0.67
-    #             sigma_lg_ASD = 0.18
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = 1.66
-    #             sigma_lg_ASA = 0.21
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = 0.93
-    #             sigma_lg_ZSA = 0.22
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = np.maximum(-1, -0.19 * (dist_2D / 1000) - 0.01 * (
-    #                     ue_height - bs_height) + 0.28)
-    #             sigma_lg_ZSD = 0.30
-    #             mu_offset_ZOD = np.arctan((35 - 3.5) / dist_2D) - np.arctan(
-    #                 (35 - 1.5) / dist_2D)
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 8
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = None
-    #             sigma_K = None
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 1.7
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 7
-    #             sigma_xpr = 3
-    #
-    #             # Number of clusters
-    #             N = 10
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = None
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 2
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 3
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 3
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 3
-    #
-    #     if self.scenario == 'InH':
-    #         # Frequency correction - see NOTE 6 from Table 7.5-6 Part-2
-    #         if fc < 6.0:
-    #             fc = 6.0
-    #
-    #         if los == LOS.LOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -0.01 * np.log10(1 + fc) - 7.692
-    #             sigma_lg_DS = 0.18
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 1.60
-    #             sigma_lg_ASD = 0.18
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = -0.19 * np.log10(1 + fc) + 1.781
-    #             sigma_lg_ASA = 0.12 * np.log10(1 + fc) + 0.119
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = -0.26 * np.log10(1 + fc) + 1.44
-    #             sigma_lg_ZSA = -0.04 * np.log10(1 + fc) + 0.264
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = -1.43 * np.log10(1 + fc) + 2.228
-    #             sigma_lg_ZSD = 0.13 * np.log10(1 + fc) + 0.30
-    #             mu_offset_ZOD = 0
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 3
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = 7
-    #             sigma_K = 4
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 3.6
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 11
-    #             sigma_xpr = 4
-    #
-    #             # Number of clusters
-    #             N = 15
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = None
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 5
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 8
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 9
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 6
-    #
-    #         if los == LOS.NLOS:
-    #             # Delay Spread (DS)
-    #             mu_lg_DS = -0.28 * np.log10(1 + fc) - 7.173
-    #             sigma_lg_DS = 0.10 * np.log10(1 + fc) + 0.055
-    #
-    #             # AOD Spread (ASD)
-    #             mu_lg_ASD = 1.62
-    #             sigma_lg_ASD = 0.25
-    #
-    #             # AOA Spread (ASA)
-    #             mu_lg_ASA = -0.11 * np.log10(1 + fc) + 1.863
-    #             sigma_lg_ASA = 0.12 * np.log10(1 + fc) + 0.059
-    #
-    #             # ZOA Spread (ZSA)
-    #             mu_lg_ZSA = -0.15 * np.log10(1 + fc) + 1.287
-    #             sigma_lg_ZSA = -0.09 * np.log10(1 + fc) + 0.746
-    #
-    #             # ZOD Spread (ZSD)
-    #             mu_lg_ZSD = 1.08
-    #             sigma_lg_ZSD = 0.36
-    #             mu_offset_ZOD = 0
-    #
-    #             # Shadow Fading (SF) [dB]
-    #             sigma_SF = 8.03
-    #
-    #             # K Factor (K) [dB]
-    #             mu_K = None
-    #             sigma_K = None
-    #
-    #             # Delay Scaling Parameter
-    #             r_tau = 3.0
-    #
-    #             # XPR [dB]
-    #             mu_XPR = 10
-    #             sigma_xpr = 4
-    #
-    #             # Number of clusters
-    #             N = 19
-    #
-    #             # Number of rays per cluster
-    #             M = 20
-    #
-    #             # Cluster DS [ns]
-    #             c_DS = None
-    #
-    #             # Cluster ASD [deg]
-    #             c_ASD = 5
-    #
-    #             # Cluster ASA [deg]
-    #             c_ASA = 11
-    #
-    #             # Cluster ZSA [deg]
-    #             c_ZSA = 9
-    #
-    #             # Per cluster shadowing std [dB]
-    #             xi = 3
-    #
-    #     # Use parameter to determine the LSP
-    #     # Generate DS
-    #     DS = 10 ** (mu_lg_DS + sigma_lg_DS * correlated_TLSP['DS'])
-    #
-    #     # Generate ASA
-    #     ASA = 10 ** (mu_lg_ASA + sigma_lg_ASA * correlated_TLSP['ASA'])
-    #     ASA = min(ASA, 104.0)
-    #
-    #     # Generate ASD
-    #     ASD = 10 ** (mu_lg_ASD + sigma_lg_ASD * correlated_TLSP['ASD'])
-    #     ASD = min(ASD, 104.0)
-    #
-    #     # Generate ZSA
-    #     ZSA = 10 ** (mu_lg_ZSA + sigma_lg_ZSA * correlated_TLSP['ZSA'])
-    #     ZSA = min(ZSA, 52.0)
-    #
-    #     # Generate ZSD
-    #     ZSD = 10 ** (mu_lg_ZSD + sigma_lg_ZSD * correlated_TLSP['ZSD'])
-    #     ZSD = min(ZSD, 52.0)
-    #     # tODO: SEE NOTE 4-5 BELOW TABLE 7.5.11
-    #
-    #     # Generate SF
-    #     SF = sigma_SF * correlated_TLSP['SF']
-    #
-    #     if los == LOS.LOS:
-    #         # Generate K
-    #         K = mu_K + sigma_K * correlated_TLSP['K']
-    #     else:
-    #         K = 0
-    #
-    #     LSP_dict = {'DS': DS, 'ASA': ASA, 'ASD': ASD, 'ZSA': ZSA, 'ZSD': ZSD, 'K': K, 'SF': SF,
-    #                 'N': N, 'M': M, 'r_tau': r_tau, 'c_DS': c_DS, 'c_ASA': c_ASA, 'c_ASD': c_ASD, 'c_ZSA': c_ZSA,
-    #                 'xi': xi, 'mu_offset_ZOD': mu_offset_ZOD, 'mu_lg_ZSD': mu_lg_ZSD, 'mu_XPR': mu_XPR,
-    #                 'sigma_xpr': sigma_xpr}
-    #
-    #     return LSP_dict
 
     def _generate_frequency_dependent_link_LSP(self, correlated_TLSP, fc, los, dist_2D, bs_height, ue_height):
         # Large Scale Parameters (LSP) for different BS-UE links are uncorrelated, but the LSPs for links from co-sited
@@ -3311,14 +2772,7 @@ class Network:
 
     def NetworkSmallScaleParameters(self):
         for link in self.BsUeLink_container.keys():
-            bs_id, ue_id = link
             los = self._BsUeLink_container[link].los
-
-            # dist_2D = self._BsUeLink_container[link].distance_2D
-            # ue_height = self.UEs[ue_id].height
-            # bs_height = self.BSs[bs_id].height
-            # ue_pos_x = self.UEs[ue_id].pos_x
-            # ue_pos_y = self.UEs[ue_id].pos_y
 
             # Get link Frequency Independent Random Variables
             self._generate_small_scale_random_draws()
@@ -3333,7 +2787,7 @@ class Network:
             phi_LOS_AOA = np.rad2deg(self._BsUeLink_container[link].LOS_AOA_GCS)
             phi_LOS_AOD = np.rad2deg(self._BsUeLink_container[link].LOS_AOD_GCS)
             theta_LOS_ZOA = np.rad2deg(self._BsUeLink_container[link].LOS_ZOA_GCS)
-            theta_LOS_ZOD = np.rad2deg(self._BsUeLink_container[link].LOS_ZOA_GCS)
+            theta_LOS_ZOD = np.rad2deg(self._BsUeLink_container[link].LOS_ZOD_GCS)
 
             # Get link Frequency Independent LSP
             N = self._BsUeLink_container[link].frequency_independent_lsp.N
@@ -3347,8 +2801,6 @@ class Network:
 
             # Compute LSP for each of the BS frequencies
             for key_fc in self.BSs[self._BsUeLink_container[link].base_station_ID].getBsFrequencyList():
-                fc = float(key_fc)
-
                 ASA = self._BsUeLink_container[link].lspContainer[key_fc].ASA
                 ASD = self._BsUeLink_container[link].lspContainer[key_fc].ASD
                 ZSA = self._BsUeLink_container[link].lspContainer[key_fc].ZSA
@@ -3401,6 +2853,8 @@ class Network:
                 # Call Step 8: Coupling of rays within a cluster for both azimuth and elevation
                 ray_mapping_AoD_AoA, ray_mapping_ZoD_ZoA, ray_mapping_AoD_ZoA = self._ray_coupling(updated_N_cluster, M)
 
+                # Reorder angles according to ray cluster:
+
                 # Call Step 9: Generate the cross polarization power ratios
                 Knm = self._cross_polarization_power_ratio(Xnm, updated_N_cluster)
 
@@ -3417,36 +2871,6 @@ class Network:
                 self._BsUeLink_container[link].lspContainer[key_fc].ray_mapping_ZoD_ZoA = ray_mapping_ZoD_ZoA
                 self._BsUeLink_container[link].lspContainer[key_fc].ray_mapping_AoD_ZoA = ray_mapping_AoD_ZoA
                 self._BsUeLink_container[link].lspContainer[key_fc].Knm = Knm
-
-
-            # # # # Sector Independent Parameters
-            # for bs_sec_indx, sector in enumerate(self.BSs[bs_id].sectors):
-            #     sector_id = sector.ID
-            #     sector_ue_key = (sector_id, ue_id)
-            #     fc_key = sector.frequency_ghz
-            #
-            #     # # Step 10: Coefficient generation - Draw initial random phases
-            #     self._SectorUeLink_container[sector_ue_key].Phi_nm = self._draw_random_phases(updated_N_cluster, M)
-            #
-            #     # # Step 11: Coefficient generation
-            #     # Generate channel coefficients for each cluster n and each Rx and Tx element pair u, s.
-            #
-            #     # Get number of antennas
-            #     n_U = self.UEs[ue_id].number_of_antennas
-            #     n_S = sector.number_of_antennas
-            #     self._SectorUeLink_container[sector_ue_key].channel = Channel(Nr=n_U, Nt=n_S)
-            #
-            #     lambda_0 = light_speed / (sector.frequency_ghz * 1E9)
-            #
-            #     d_rx = sector.antenna_panels[0].array_location_vector
-            #     d_tx = sector.antenna_panels[0].array_location_vector
-            #
-            #     ue_velocity_ms = self.UEs[ue_id].velocity_ms
-            #     ue_mobility_direction_phi = self.UEs[ue_id].mobility_direction_phi
-            #     ue_mobility_direction_theta = self.UEs[ue_id].mobility_direction_theta
-            #
-            #     self._SectorUeLink_container[sector_ue_key].channel = self._generate_channel_coefficients(
-            #         channel=channel)
 
     def NetworkChannelGeneration(self):
         for sector_ue_key in self.SectorUeLink_container.keys():
@@ -3471,9 +2895,11 @@ class Network:
             phi_n_m_AOD = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].phi_n_m_AOD
             theta_n_m_ZOA = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].theta_n_m_ZOA
             theta_n_m_ZOD = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].theta_n_m_ZOD
+
+            # TODO: ray mapping requires special attention in case of two strogest paths
             ray_mapping_AoD_AoA = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].ray_mapping_AoD_AoA
             ray_mapping_ZoD_ZoA = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].ray_mapping_ZoD_ZoA
-            ray_mapping_AoD_ZoA = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].ray_mapping_AoD_ZoA
+            ray_mapping_AoD_ZoD = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].ray_mapping_AoD_ZoD
             Knm = self._BsUeLink_container[bs_ue_key].lspContainer[key_fc].Knm
 
             # Get link LOS angles
@@ -3482,11 +2908,10 @@ class Network:
             theta_LOS_ZOA = np.rad2deg(self._BsUeLink_container[bs_ue_key].LOS_ZOA_GCS)
             theta_LOS_ZOD = np.rad2deg(self._BsUeLink_container[bs_ue_key].LOS_ZOA_GCS)
 
-            # Step 10: Coefficient generation - Draw initial random phases
+            # Call Step 10: Coefficient generation - Draw initial random phases
             self._SectorUeLink_container[sector_ue_key].Phi_nm = self._draw_random_phases(updated_N_cluster, M)
 
-
-            # # Step 11: Coefficient generation
+            # Step 11: Coefficient generation
             # Generate channel coefficients for each cluster n and each Rx and Tx element pair u, s.
 
             # Get number of antennas
@@ -3506,20 +2931,22 @@ class Network:
 
             Phi_nm = self._SectorUeLink_container[sector_ue_key].Phi_nm
 
-            ue_antenna_pannel = self.UEs[ue_id].antenna_panels[0]
-            sector_antenna_pannel = sector.antenna_panels[0]
+            ue_antenna_panel = self.UEs[ue_id].antenna_panels[0]
+            sector_antenna_panel = sector.antenna_panels[0]
 
             # Compute LOS/NLOS gain using Ricean Factor
             gain_LOS = 0.0
             gain_NLOS = 0.0
-            K_R_linear = 10 ** (K / 10)
+            K_R_linear = 10.0 ** (K / 10.0)
             if los == LOS.LOS:
                 gain_LOS = np.sqrt(K_R_linear / (K_R_linear + 1))
                 gain_NLOS = np.sqrt(1 / (K_R_linear + 1))
             else:
-                gain_NLOS = 1
+                gain_NLOS = 1.0
 
-            channel = self._SectorUeLink_container[sector_ue_key].channel = self._generate_channel_coefficients(
+
+
+            self._SectorUeLink_container[sector_ue_key].channel = self._generate_channel_coefficients(
                 channel=channel, updated_N_cluster=updated_N_cluster, lambda_0=lambda_0, los=los, d_rx=d_rx, d_tx=d_tx,
                 phi_LOS_AOA=phi_LOS_AOA, phi_LOS_AOD=phi_LOS_AOD,
                 theta_LOS_ZOA=theta_LOS_ZOA, theta_LOS_ZOD=theta_LOS_ZOD,
@@ -3528,11 +2955,12 @@ class Network:
                 ue_velocity_ms=ue_velocity_ms, ue_mobility_direction_phi=ue_mobility_direction_phi,
                 ue_mobility_direction_theta=ue_mobility_direction_theta,
                 P_n=P_n, M=M, cluster_delay=cluster_delay, Knm=Knm, Phi_nm=Phi_nm,
-                gain_LOS=gain_LOS, gain_NLOS=gain_NLOS, c_DS=c_DS, ue_antenna_pannel=ue_antenna_pannel,
-                sector_antenna_pannel=sector_antenna_pannel)
+                gain_LOS=gain_LOS, gain_NLOS=gain_NLOS, c_DS=c_DS, ue_antenna_panel=ue_antenna_panel,
+                sector_antenna_panel=sector_antenna_panel,
+                ray_mapping_AoD_AoA=ray_mapping_AoD_AoA, ray_mapping_ZoD_ZoA=ray_mapping_ZoD_ZoA,
+                ray_mapping_AoD_ZoD=ray_mapping_AoD_ZoD)
 
-
-    ## Step 5: Generate Cluster Delay
+    # Step 5: Generate Cluster Delay
     def _cluster_delay(self, los, r_tau, DS, K, Xn):
         ################################################################################################################
         # Step 5: Generate cluster delays Tau_n:
@@ -3550,7 +2978,7 @@ class Network:
 
         return cluster_delay, cluster_delay_LOS
 
-    ## Step 6: Generate Cluster Power
+    # Step 6: Generate Cluster Power
     def _cluster_power(self, cluster_delay, los, r_tau, DS, K, xi, M):
         P_n_notch = np.exp(-cluster_delay * ((r_tau - 1) / (r_tau * DS)))
         Zn = (10 ** (- np.random.normal(loc=0.0, scale=xi) / 10))
@@ -3571,7 +2999,7 @@ class Network:
         # updated_N_cluster = len(P_n)
         return P_n, cluster_delay
 
-    ## Step 7-a: Generate AoA
+    # Step 7-a: Generate AoA
     def _cluster_aoa(self, los, C_phi, updated_N_cluster, Xn_aoa, Yn_aoa, ASA, P_n, phi_LOS_AOA, M, c_ASA):
         Xn_aoa = Xn_aoa[0:updated_N_cluster]
         Yn_aoa = Yn_aoa[0:updated_N_cluster]
@@ -3584,12 +3012,11 @@ class Network:
 
         phi_n_m_AOA = np.zeros((updated_N_cluster, M))
         for n in range(updated_N_cluster):
-            phi_n_m_AOA[n] = phi_n_AOA[n] + c_ASA * alpha_m
-            # Todo: may need to limit lenght of alpha_m
+            phi_n_m_AOA[n] = phi_n_AOA[n] + c_ASA * alpha_m[:M]
         return phi_n_m_AOA
 
-    ## Step 7-b: Generate AoD
-    def _cluster_aod(self, los,C_phi, updated_N_cluster, Xn_aod, Yn_aod, ASD, P_n, phi_LOS_AOD, M, c_ASD):
+    # Step 7-b: Generate AoD
+    def _cluster_aod(self, los, C_phi, updated_N_cluster, Xn_aod, Yn_aod, ASD, P_n, phi_LOS_AOD, M, c_ASD):
         Xn_aod = Xn_aod[0:updated_N_cluster]
         Yn_aod = Yn_aod[0:updated_N_cluster]
         phi_notch_n_AOD = 2 * (ASD / 1.4) * np.sqrt(-np.log(P_n / max(P_n))) / C_phi
@@ -3601,12 +3028,11 @@ class Network:
 
         phi_n_m_AOD = np.zeros((updated_N_cluster, M))
         for n in range(updated_N_cluster):
-            phi_n_m_AOD[n] = phi_n_AOD[n] + c_ASD * alpha_m
-            # Todo: may need to limit lenght of alpha_m
+            phi_n_m_AOD[n] = phi_n_AOD[n] + c_ASD * alpha_m[:M]
 
         return phi_n_m_AOD
 
-    ## Step 7-b: Generate ZoA
+    # Step 7-b: Generate ZoA
     def _cluster_zoa(self, los, C_theta, updated_N_cluster, Xn_zoa, Yn_zoa, ZSA, P_n, theta_LOS_ZOA, M, c_ZSA):
         Xn_zoa = Xn_zoa[0:updated_N_cluster]
         Yn_zoa = Yn_zoa[0:updated_N_cluster]
@@ -3623,14 +3049,13 @@ class Network:
 
         theta_n_m_ZOA = np.zeros((updated_N_cluster, M))
         for n in range(updated_N_cluster):
-            temp = theta_n_ZOA[n] + c_ZSA * alpha_m
-            # Todo: may need to limit lenght of alpha_m
+            temp = theta_n_ZOA[n] + c_ZSA * alpha_m[:M]
             temp[(temp >= 180) & (temp <= 360)] = 360 - temp[(temp >= 180) & (temp <= 360)]
             theta_n_m_ZOA[n] = temp
 
         return theta_n_m_ZOA
 
-    ## Step 7-b: Generate ZoD
+    # Step 7-b: Generate ZoD
     def _cluster_zod(self, los, C_theta, updated_N_cluster, Xn_zod, Yn_zod, ZSD, P_n, theta_LOS_ZOD, M, mu_offset_ZOD,
                      mu_lg_ZSD):
         Xn_zod = Xn_zod[0:updated_N_cluster]
@@ -3645,51 +3070,68 @@ class Network:
 
         theta_n_m_ZOD = np.zeros((updated_N_cluster, M))
         for n in range(updated_N_cluster):
-            temp = theta_n_ZOD[n] + (3 / 8) * (10 ** mu_lg_ZSD) * alpha_m
-            # Todo: may need to limit lenght of alpha_m
+            temp = theta_n_ZOD[n] + (3 / 8) * (10 ** mu_lg_ZSD) * alpha_m[:M]
             temp[(temp >= 180) & (temp <= 360)] = 360 - temp[(temp >= 180) & (temp <= 360)]
             theta_n_m_ZOD[n] = temp
 
         return theta_n_m_ZOD
 
-    ## Step 8: Coupling of rays
+    # Step 8: Coupling of rays
     def _ray_coupling(self, updated_N_cluster, M):
+
         ray_mapping_AoD_AoA = np.zeros((updated_N_cluster, M), dtype=int)
         ray_mapping_ZoD_ZoA = np.zeros((updated_N_cluster, M), dtype=int)
         ray_mapping_AoD_ZoA = np.zeros((updated_N_cluster, M), dtype=int)
         for n in range(updated_N_cluster):
-            ray_mapping_AoD_AoA[n] = np.random.permutation(M).astype(int)
-            ray_mapping_ZoD_ZoA[n] = np.random.permutation(M).astype(int)
-            ray_mapping_AoD_ZoA[n] = np.random.permutation(M).astype(int)
+            if n in [0, 1]:
+                subcluster_mapping = {0: [1, 2, 3, 4, 5, 6, 7, 8, 19, 20],
+                                      1: [9, 10, 11, 12, 17, 18],
+                                      2: [13, 14, 15, 16]}
+                pass
+                # TODO: Implement differentiation for the subcluster case (two strongest paths)
+                ray_mapping_AoD_AoA[n] = np.random.permutation(M).astype(int)
+                ray_mapping_ZoD_ZoA[n] = np.random.permutation(M).astype(int)
+                ray_mapping_AoD_ZoA[n] = np.random.permutation(M).astype(int)
+            else:
+                ray_mapping_AoD_AoA[n] = np.random.permutation(M).astype(int)
+                ray_mapping_ZoD_ZoA[n] = np.random.permutation(M).astype(int)
+                ray_mapping_AoD_ZoA[n] = np.random.permutation(M).astype(int)
 
         return ray_mapping_AoD_AoA, ray_mapping_ZoD_ZoA, ray_mapping_AoD_ZoA
 
-    ## Step 9: Generate the cross polarization power ratios
+    # Step 9: Generate the cross polarization power ratios
     def _cross_polarization_power_ratio(self, Xnm, updated_N_cluster):
         Xnm = Xnm[:updated_N_cluster,:]
         Knm = np.power(10, Xnm / 10)
 
         return Knm
 
+    # Step 10: Coefficient generation - Draw initial random phases
     def _draw_random_phases(self, updated_N_cluster, M):
-        # Step 10: Coefficient generation - Draw initial random phases
-        Phi_nm = np.random.uniform(-np.pi, -np.pi, size=(updated_N_cluster, M, 2, 2))
-        # Phi theta-theta: Phi_nm[n,m,0,0]
-        # Phi theta-phi: Phi_nm[n,m,0,1]
-        # Phi phi-theta: Phi_nm[n,m,1,0]
-        # Phi phi-phi: Phi_nm[n,m,1,1]
+        Phi_nm = np.random.uniform(-np.pi, np.pi, size=(updated_N_cluster, M, 2, 2))
+        # Phi theta-theta: Phi_nm[n,m,0,0]  -  Phi theta-phi: Phi_nm[n,m,0,1]
+        # Phi phi-theta: Phi_nm[n,m,1,0]    -  Phi phi-phi: Phi_nm[n,m,1,1]
 
         return Phi_nm
 
+    # Step 11: Coefficient generation
     def _generate_channel_coefficients(self, channel: Channel, updated_N_cluster, lambda_0, los, d_rx, d_tx,
                                        phi_LOS_AOA, phi_LOS_AOD, theta_LOS_ZOA, theta_LOS_ZOD,
                                        phi_n_m_AOA, phi_n_m_AOD, theta_n_m_ZOA, theta_n_m_ZOD,
                                        ue_velocity_ms, ue_mobility_direction_phi, ue_mobility_direction_theta,
-                                       P_n, M, cluster_delay, Knm, Phi_nm, gain_LOS, gain_NLOS, c_DS, ue_antenna_pannel,
-                                       sector_antenna_pannel):
-            # Step 11: Coefficient generation
+                                       P_n, M, cluster_delay, Knm, Phi_nm, gain_LOS, gain_NLOS, c_DS, ue_antenna_panel,
+                                       sector_antenna_panel, ray_mapping_AoD_AoA, ray_mapping_ZoD_ZoA,
+                                       ray_mapping_AoD_ZoD):
+
             n_U = channel.Nr
             n_S = channel.Nt
+
+            r_rx_vel = ue_velocity_ms * np.array(
+                [np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.cos(np.deg2rad(ue_mobility_direction_phi)),
+                 np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.sin(np.deg2rad(ue_mobility_direction_phi)),
+                 np.cos(np.deg2rad(ue_mobility_direction_theta))]).T
+
+            # Todo: I should probably add a for over the number of polarizations here
 
             if los == LOS.LOS:
                 HLOS = np.zeros((n_U, n_S), dtype=complex)
@@ -3703,24 +3145,34 @@ class Network:
                 r_tx_mn = np.array([np.sin(np.deg2rad(theta_LOS_ZOD)) * np.cos(np.deg2rad(phi_LOS_AOD)),
                                     np.sin(np.deg2rad(theta_LOS_ZOD)) * np.sin(np.deg2rad(phi_LOS_AOD)),
                                     np.cos(np.deg2rad(theta_LOS_ZOD))]).T
-                r_rx_vel = ue_velocity_ms * np.array(
-                    [np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.cos(np.deg2rad(ue_mobility_direction_phi)),
-                     np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.sin(np.deg2rad(ue_mobility_direction_phi)),
-                     np.cos(np.deg2rad(ue_mobility_direction_theta))]).T
 
-                Frx_u = ue_antenna_pannel.vector_field_transformation_from_gcs(theta_LOS_ZOA, phi_LOS_AOA)
-                Ftx_s = sector_antenna_pannel.vector_field_transformation_from_gcs(theta_LOS_ZOD, phi_LOS_AOD)
+                Frx_u = ue_antenna_panel.vector_field_transformation_from_gcs(theta_LOS_ZOA, phi_LOS_AOA)
+                Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(theta_LOS_ZOD, phi_LOS_AOD)
 
+                exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
                 for u in range(n_U):
+                    exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
                     for s in range(n_S):
-                        exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
                         exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-                        exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
+
                         HLOS[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
                 channel.add_cluster(H=gain_LOS * HLOS, tau=cluster_delay[n])
 
             # Todo: Need to think of how to make this more efficient (perform some vector operation to avoid so many fors:
             # HNLOS = np.zeros((n_U, n_S))
+
+            # Compute r_tx_mn and r_rx_mn
+            r_rx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOA)) * np.cos(np.deg2rad(phi_n_m_AOA)),
+                                np.sin(np.deg2rad(theta_n_m_ZOA)) * np.sin(np.deg2rad(phi_n_m_AOA)),
+                                np.cos(np.deg2rad(theta_n_m_ZOA))]).T
+            r_tx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOD)) * np.cos(np.deg2rad(phi_n_m_AOD)),
+                                np.sin(np.deg2rad(theta_n_m_ZOD)) * np.sin(np.deg2rad(phi_n_m_AOD)),
+                                np.cos(np.deg2rad(theta_n_m_ZOD))]).T
+
+            exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
+            exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx.T) / lambda_0)
+            exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx.T) / lambda_0)
+
             for n in range(2, updated_N_cluster):
                 H_NLOS_temp = np.zeros((n_U, n_S), dtype=complex)
 
@@ -3728,28 +3180,16 @@ class Network:
                     PolM = np.array(
                         [[np.exp(1j * Phi_nm[n, m, 0, 0]), np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 0, 1])],
                          [np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 1, 0]), np.exp(1j * Phi_nm[n, m, 1, 0])]])
-                    r_rx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.cos(np.deg2rad(phi_n_m_AOA[n, m])),
-                                        np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.sin(np.deg2rad(phi_n_m_AOA[n, m])),
-                                        np.cos(np.deg2rad(theta_n_m_ZOA[n, m]))]).T
-                    r_tx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.cos(np.deg2rad(phi_n_m_AOD[n, m])),
-                                        np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.sin(np.deg2rad(phi_n_m_AOD[n, m])),
-                                        np.cos(np.deg2rad(theta_n_m_ZOD[n, m]))]).T
-                    r_rx_vel = ue_velocity_ms * np.array(
-                        [np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.cos(np.deg2rad(ue_mobility_direction_phi)),
-                         np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.sin(np.deg2rad(ue_mobility_direction_phi)),
-                         np.cos(np.deg2rad(ue_mobility_direction_theta))]).T
 
-                    Frx_u = ue_antenna_pannel.vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
-                                                                                      phi_n_m_AOA[n, m])
-                    Ftx_s = sector_antenna_pannel.vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
-                                                                                                phi_n_m_AOD[n, m])
+                    Frx_u = ue_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
+                                                                                  phi_n_m_AOA[n, m])
+                    Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
+                                                                                      phi_n_m_AOD[n, m])
+
 
                     for u in range(n_U):
                         for s in range(n_S):
-                            exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
-                            exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-                            exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-                            H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
+                            H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx[m,n,u] * exp_tx[m,n,s] * exp_vel[m,n]
 
                 H_NLOS_temp = np.sqrt(P_n[n] / M) * H_NLOS_temp
                 channel.add_cluster(H=H_NLOS_temp, tau=cluster_delay[n])
@@ -3759,45 +3199,24 @@ class Network:
             else:
                 start_subcluster = 0
 
-            subcluster_mapping = {0: [1, 2, 3, 4, 5, 6, 7, 8, 19, 20],
-                                  1: [9, 10, 11, 12, 17, 18],
-                                  2: [13, 14, 15, 16]}
             delay_offset = np.array([0, 1.28 * c_DS, 2.56 * c_DS])
             for n in [nn for nn in range(start_subcluster, 2) if nn <= (updated_N_cluster - 1)]:
                 H_NLOS_temp = np.zeros((n_U, n_S), dtype=complex)
                 for sub_cluster in range(3):
                     # Make sure it won't go over the existing number of rays
                     for m in [x for x in subcluster_mapping[sub_cluster] if x <= (M - 1)]:
-                        PolM = np.array(
-                            [[np.exp(1j * Phi_nm[n, m, 0, 0]), np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 0, 1])],
-                             [np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 1, 0]), np.exp(1j * Phi_nm[n, m, 1, 0])]])
+                        G = np.array([[1, np.sqrt(1 / Knm[n, m])], [np.sqrt(1 / Knm[n, m]), 1]])
+                        PolM = np.multiply(G, np.exp(1j * Phi_nm[n, m]))
 
-                        r_rx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.cos(np.deg2rad(phi_n_m_AOA[n, m])),
-                                            np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.sin(np.deg2rad(phi_n_m_AOA[n, m])),
-                                            np.cos(np.deg2rad(theta_n_m_ZOA[n, m]))]).T
-
-                        r_tx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.cos(np.deg2rad(phi_n_m_AOD[n, m])),
-                                            np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.sin(np.deg2rad(phi_n_m_AOD[n, m])),
-                                            np.cos(np.deg2rad(theta_n_m_ZOD[n, m]))]).T
-
-                        r_rx_vel = ue_velocity_ms * np.array(
-                            [np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.cos(
-                                np.deg2rad(ue_mobility_direction_phi)),
-                             np.sin(np.deg2rad(ue_mobility_direction_theta)) * np.sin(
-                                 np.deg2rad(ue_mobility_direction_phi)),
-                             np.cos(np.deg2rad(ue_mobility_direction_theta))]).T
-
-                        Frx_u = ue_antenna_pannel.vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
-                                                                                          phi_n_m_AOA[n, m])
-                        Ftx_s = sector_antenna_pannel.vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
-                                                                                                    phi_n_m_AOD[n, m])
+                        Frx_u = ue_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
+                                                                                      phi_n_m_AOA[n, m])
+                        Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
+                                                                                          phi_n_m_AOD[n, m])
 
                         for u in range(n_U):
                             for s in range(n_S):
-                                exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
-                                exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-                                exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-                                H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
+                                H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) \
+                                                     * exp_rx[m, n, u] * exp_tx[m, n, s] * exp_vel[m, n]
 
                     H_NLOS_temp = np.sqrt(P_n[n] / M) * H_NLOS_temp
                     channel.add_cluster(H=gain_NLOS * H_NLOS_temp, tau=cluster_delay[n] + 1E-9 * delay_offset[sub_cluster])
@@ -3807,479 +3226,6 @@ class Network:
 
             return channel
 
-
-    # def generateSmallScaleParams_link(self, BsUeLink: BsUeLink):
-    #     # ue_id = BsUeLink.ue_ID
-    #     # bs_id = BsUeLink.base_station_ID
-    #     # ue = self.UEs[ue_id]
-    #     # bs = self.BSs[bs_id]
-    #     # # Small Scale Parameter generation
-    #     #
-    #     # # Get first sector to compute frequency independent parameters:
-    #     # sector_id = self.BSs[bs_id].sectors[0].ID
-    #     # link = self._SectorUeLink_container[(sector_id, ue_id)]
-    #     #
-    #     # # Frequency Independent Parameters
-    #     # Xn_aoa = np.random.choice([-1, 1], size=link.LSP['N'])
-    #     # Yn_aoa = np.random.normal(loc=0, scale=(link.LSP['ASA'] / 7), size=link.LSP['N'])
-    #     # Xn_aod = np.random.choice([-1, 1], size=link.LSP['N'])
-    #     # Yn_aod = np.random.normal(loc=0, scale=(link.LSP['ASD'] / 7), size=link.LSP['N'])
-    #     # Xn_zoa = np.random.choice([-1, 1], size=link.LSP['N'])
-    #     # Yn_zoa = np.random.normal(loc=0, scale=(link.LSP['ZSA'] / 7), size=link.LSP['N'])
-    #     # Xn_zod = np.random.choice([-1, 1], size=link.LSP['N'])
-    #     # Yn_zod = np.random.normal(loc=0, scale=(link.LSP['ZSD'] / 7), size=link.LSP['N'])
-    #     #
-    #     # phi_LOS_AOA = np.rad2deg(BsUeLink.LOS_AOA_GCS)
-    #     # phi_LOS_AOD = np.rad2deg(BsUeLink.LOS_AOD_GCS)
-    #     # theta_LOS_ZOA = np.rad2deg(BsUeLink.LOS_ZOA_GCS)
-    #     # theta_LOS_ZOD = np.rad2deg(BsUeLink.LOS_ZOA_GCS)
-    #     #
-    #     #
-    #     # Split sector by frequency:
-    #     # fc_per_sector = [sector.frequency_ghz for sector in self.BSs[bs_id].sectors]
-    #     # sectors_per_fc = {}
-    #     # for sector_idx, key_fc in enumerate(fc_per_sector):
-    #     #     sectors_per_fc.setdefault(key_fc, []).append(sector_idx)
-    #     #
-    #     # for key_fc in sectors_per_fc.keys():
-    #     #     sectors_in_fc = sectors_per_fc[key_fc]
-    #     #     sector_ids = [self.BSs[bs_id].sectors[sector_idx].ID for sector_idx in sectors_in_fc]
-    #     #
-    #     #     SectorUeLink_key = (sector_ids[0], ue_id)
-    #     #     link = self._SectorUeLink_container[SectorUeLink_key]
-    #     #
-    #     #     ################################################################################################################
-    #     #     # Step 5: Generate cluster delays Tau_n:
-    #     #     # Xn = np.random.uniform(size=link.LSP['N'])
-    #     #     cluster_delay = - link.LSP['r_tau'] * link.LSP['DS'] * np.log(Xn)
-    #     #     cluster_delay = np.sort(cluster_delay - min(cluster_delay))
-    #     #
-    #     #     if link.los == LOS.LOS:
-    #     #         C_tau = 0.7705 - 0.0433 * link.LSP['K'] + 0.0002 * (link.LSP['K'] ** 2) + 0.000017 * (
-    #     #                 link.LSP['K'] ** 3)
-    #     #         cluster_delay_LOS = cluster_delay / C_tau
-    #     #
-    #     #     ################################################################################################################
-    #     #     # Step 6: Generate cluster powers P_n:
-    #     #     P_n_notch = np.exp(
-    #     #         -cluster_delay * ((link.LSP['r_tau'] - 1) / (link.LSP['r_tau'] * link.LSP['DS'])))
-    #     #     Zn = (10 ** (- np.random.normal(loc=0.0, scale=link.LSP['xi']) / 10))
-    #     #     P_n_notch = P_n_notch * Zn
-    #     #
-    #     #     P_n = P_n_notch / sum(P_n_notch)
-    #     #
-    #     #     if link.los == LOS.LOS:
-    #     #         K_R_linear = 10 ** (link.LSP['K'] / 10)
-    #     #         P_n = (1 / (K_R_linear + 1)) * P_n
-    #     #         P_n[0] = P_n[0] + (K_R_linear / (K_R_linear + 1))
-    #     #
-    #     #     # Discard clusters with power less than -25 dB compared to the maximum cluster power
-    #     #     P_n_dB = 10 * np.log10(P_n)
-    #     #     P_n = P_n[P_n_dB >= max(P_n_dB) - 25]
-    #     #
-    #     #     cluster_delay = cluster_delay[P_n_dB >= max(P_n_dB) - 25]
-    #     #
-    #     #     # Power per ray
-    #     #     P_n_ray = P_n / link.LSP['M']
-    #     #
-    #     #     updated_N_cluster = len(P_n)
-    #     #
-    #     #     ################################################################################################################
-    #     #     # Step 7: Generate arrival angles and departure angles for both azimuth and elevation
-    #     #     # Todo: Check standard (perhaps instead of using updated_N_cluster I should use the M and M only has a finite
-    #     #     #  set of values, so I wouldn't need the interpolation below)
-    #     #
-    #     #     # Azimuth
-    #     #     if updated_N_cluster == 1:  # Not in the standard - obtained from GUESSING
-    #     #         C_phi_NLOS = 0.200
-    #     #     elif updated_N_cluster == 2:  # Not in the standard - obtained from GUESSING
-    #     #         C_phi_NLOS = 0.500
-    #     #     elif updated_N_cluster == 3:  # Not in the standard - obtained from GUESSING
-    #     #         C_phi_NLOS = 0.699
-    #     #     elif updated_N_cluster == 4:
-    #     #         C_phi_NLOS = 0.779
-    #     #     elif updated_N_cluster == 5:
-    #     #         C_phi_NLOS = 0.860
-    #     #     elif updated_N_cluster == 6:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 0.913
-    #     #     elif updated_N_cluster == 7:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 0.965
-    #     #     elif updated_N_cluster == 8:
-    #     #         C_phi_NLOS = 1.018
-    #     #     elif updated_N_cluster == 9:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.054
-    #     #     elif updated_N_cluster == 10:
-    #     #         C_phi_NLOS = 1.090
-    #     #     elif updated_N_cluster == 11:
-    #     #         C_phi_NLOS = 1.123
-    #     #     elif updated_N_cluster == 12:
-    #     #         C_phi_NLOS = 1.146
-    #     #     elif updated_N_cluster == 13:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.168
-    #     #     elif updated_N_cluster == 14:
-    #     #         C_phi_NLOS = 1.190
-    #     #     elif updated_N_cluster == 15:
-    #     #         C_phi_NLOS = 1.211
-    #     #     elif updated_N_cluster == 16:
-    #     #         C_phi_NLOS = 1.226
-    #     #     elif updated_N_cluster == 17:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.242
-    #     #     elif updated_N_cluster == 18:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.257
-    #     #     elif updated_N_cluster == 19:
-    #     #         C_phi_NLOS = 1.273
-    #     #     elif updated_N_cluster == 20:
-    #     #         C_phi_NLOS = 1.289
-    #     #     elif updated_N_cluster == 21:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.303
-    #     #     elif updated_N_cluster == 22:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.317
-    #     #     elif updated_N_cluster == 23:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.330
-    #     #     elif updated_N_cluster == 24:  # Not in the standard - obtained from linear interpolation
-    #     #         C_phi_NLOS = 1.344
-    #     #     elif updated_N_cluster == 25:
-    #     #         C_phi_NLOS = 1.358
-    #     #     else:
-    #     #         raise "Invalid number of clusters"
-    #     #
-    #     #     if link.los == LOS.LOS:
-    #     #         C_phi = C_phi_NLOS * (1.1035 - 0.028 * link.LSP['K'] - 0.002 * (link.LSP['K'] ** 2) + 0.0001 * (
-    #     #                 link.LSP['K'] ** 3))
-    #     #     else:
-    #     #         C_phi = C_phi_NLOS
-    #     #
-    #     #     # Azimuth of Arrival
-    #     #     # Xn_aoa = np.random.choice([-1, 1], size=updated_N_cluster)
-    #     #     # Yn_aoa = np.random.normal(loc=0, scale=(link.LSP['ASA'] / 7), size=updated_N_cluster)
-    #     #     Xn_aoa = Xn_aoa[0:updated_N_cluster]
-    #     #     Yn_aoa = Yn_aoa[0:updated_N_cluster]
-    #     #     phi_notch_n_AOA = 2 * (link.LSP['ASA'] / 1.4) * np.sqrt(-np.log(P_n / max(P_n))) / C_phi
-    #     #
-    #     #     # phi_LOS_AOA = np.rad2deg(link.LOS_AOA_GCS)
-    #     #
-    #     #     if not (link.los == LOS.LOS):
-    #     #         phi_n_AOA = Xn_aoa * phi_notch_n_AOA + Yn_aoa + phi_LOS_AOA
-    #     #     else:
-    #     #         phi_n_AOA = (Xn_aoa * phi_notch_n_AOA + Yn_aoa) - (Xn_aoa[0] * phi_notch_n_AOA[0] + Yn_aoa[0] - phi_LOS_AOA)
-    #     #
-    #     #     alpha_m = np.array(
-    #     #         [0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129, 0.6797, -0.6797,
-    #     #          0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551])
-    #     #
-    #     #     phi_n_m_AOA = np.zeros((updated_N_cluster, link.LSP['M']))
-    #     #     for n in range(updated_N_cluster):
-    #     #         phi_n_m_AOA[n] = phi_n_AOA[n] + link.LSP['c_ASA'] * alpha_m
-    #     #
-    #     #     Azimuth of Departure
-    #     #     Xn_aod = np.random.choice([-1, 1], size=updated_N_cluster)
-    #     #     Yn_aod = np.random.normal(loc=0, scale=(link.LSP['ASD'] / 7), size=updated_N_cluster)
-    #     #     Xn_aod = Xn_aod[0:updated_N_cluster]
-    #     #     Yn_aod = Yn_aod[0:updated_N_cluster]
-    #     #     phi_notch_n_AOD = 2 * (link.LSP['ASD'] / 1.4) * np.sqrt(-np.log(P_n / max(P_n))) / C_phi
-    #     #
-    #     #     # phi_LOS_AOD = np.rad2deg(link.LOS_AOD_GCS)
-    #     #
-    #     #     if not (link.los == LOS.LOS):
-    #     #         phi_n_AOD = Xn_aod * phi_notch_n_AOD + Yn_aod + phi_LOS_AOD
-    #     #     else:
-    #     #         phi_n_AOD = (Xn_aod * phi_notch_n_AOD + Yn_aod) - (Xn_aod[0] * phi_notch_n_AOD[0] + Yn_aod[0] - phi_LOS_AOD)
-    #     #
-    #     #     alpha_m = np.array([0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129,
-    #     #                         0.6797, -0.6797, 0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551])
-    #     #
-    #     #     phi_n_m_AOD = np.zeros((updated_N_cluster, link.LSP['M']))
-    #     #     for n in range(updated_N_cluster):
-    #     #         phi_n_m_AOD[n] = phi_n_AOD[n] + link.LSP['c_ASD'] * alpha_m
-    #     #
-    #     #     # Zenith
-    #     #     # Todo: Check standard (perhaps instead of using updated_N_cluster I should use the M and M only has a finite
-    #     #     #  set of values, so I wouldn't need the interpolation below)
-    #     #     if updated_N_cluster == 1:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.2
-    #     #     elif updated_N_cluster == 2:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.5
-    #     #     elif updated_N_cluster == 3:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.699
-    #     #     elif updated_N_cluster == 4:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.779
-    #     #     elif updated_N_cluster == 5:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.860
-    #     #     elif updated_N_cluster == 6:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.913
-    #     #     elif updated_N_cluster == 7:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 0.965
-    #     #     elif updated_N_cluster == 8:
-    #     #         C_theta_NLOS = 0.889
-    #     #     elif updated_N_cluster == 9:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.054
-    #     #     elif updated_N_cluster == 10:
-    #     #         C_theta_NLOS = 0.957
-    #     #     elif updated_N_cluster == 11:
-    #     #         C_theta_NLOS = 1.031
-    #     #     elif updated_N_cluster == 12:
-    #     #         C_theta_NLOS = 1.104
-    #     #     elif updated_N_cluster == 13:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.168
-    #     #     elif updated_N_cluster == 14:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.190
-    #     #     elif updated_N_cluster == 15:
-    #     #         C_theta_NLOS = 1.1088
-    #     #     elif updated_N_cluster == 16:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.226
-    #     #     elif updated_N_cluster == 17:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.242
-    #     #     elif updated_N_cluster == 18:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.257
-    #     #     elif updated_N_cluster == 19:
-    #     #         C_theta_NLOS = 1.184
-    #     #     elif updated_N_cluster == 20:
-    #     #         C_theta_NLOS = 1.178
-    #     #     elif updated_N_cluster == 21:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.303
-    #     #     elif updated_N_cluster == 22:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.317
-    #     #     elif updated_N_cluster == 23:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.330
-    #     #     elif updated_N_cluster == 24:  # Not in the standard - incorrect # TODO
-    #     #         C_theta_NLOS = 1.344
-    #     #     elif updated_N_cluster == 25:
-    #     #         C_theta_NLOS = 1.282
-    #     #     else:
-    #     #         raise "Invalid number of clusters"
-    #     #
-    #     #     # if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == LOS.LOS:
-    #     #     if link.los == LOS.LOS:
-    #     #         C_theta = C_theta_NLOS * (
-    #     #                 1.3086 + 0.0339 * link.LSP['K'] - 0.0077 * (link.LSP['K'] ** 2) + 0.0002 * (
-    #     #                 link.LSP['K'] ** 3))
-    #     #     else:
-    #     #         C_theta = C_theta_NLOS
-    #     #
-    #     #     # Zenith of Arrival
-    #     #     # Xn_zoa = np.random.choice([-1, 1], size=updated_N_cluster)
-    #     #     # Yn_zoa = np.random.normal(loc=0, scale=(link.LSP['ZSA'] / 7), size=updated_N_cluster)
-    #     #     Xn_zoa = Xn_zoa[0:updated_N_cluster]
-    #     #     Yn_zoa = Yn_zoa[0:updated_N_cluster]
-    #     #     theta_notch_n_ZOA = - link.LSP['ZSA'] * np.log(P_n / max(P_n)) / C_theta
-    #     #
-    #     #     # if self.getLOS(self.los_Matrix[ue.ID][bs.ID]) == 'O2I':
-    #     #     if link.los == LOS.O2I:
-    #     #         theta_LOS_ZOA = 90
-    #     #     else:
-    #     #         # theta_LOS_ZOA = np.rad2deg(link.LOS_ZOA_GCS)
-    #     #         pass
-    #     #
-    #     #     if not (link.los == LOS.LOS):
-    #     #         theta_n_ZOA = Xn_zoa * theta_notch_n_ZOA + Yn_zoa + theta_LOS_ZOA
-    #     #     else:
-    #     #         theta_n_ZOA = (Xn_zoa * theta_notch_n_ZOA + Yn_zoa) - (Xn_zoa[0] * theta_notch_n_ZOA[0] + Yn_zoa[0]
-    #     #                                                                - theta_LOS_ZOA)
-    #     #
-    #     #     alpha_m = np.array([0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129, 0.6797,
-    #     #                         -0.6797, 0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551])
-    #     #
-    #     #     theta_n_m_ZOA = np.zeros((updated_N_cluster, link.LSP['M']))
-    #     #     for n in range(updated_N_cluster):
-    #     #         temp = theta_n_ZOA[n] + link.LSP['c_ZSA'] * alpha_m
-    #     #         temp[(temp >= 180) & (temp <= 360)] = 360 - temp[(temp >= 180) & (temp <= 360)]
-    #     #         theta_n_m_ZOA[n] = temp
-    #     #
-    #     #     Zenith of Departure
-    #     #     Xn_zod = np.random.choice([-1, 1], size=updated_N_cluster)
-    #     #     Yn_zod = np.random.normal(loc=0, scale=(link.LSP['ZSD'] / 7), size=updated_N_cluster)
-    #     #     Xn_zod = Xn_zod[0:updated_N_cluster]
-    #     #     Yn_zod = Yn_zod[0:updated_N_cluster]
-    #     #     theta_notch_n_ZOD = - link.LSP['ZSD'] * np.log(P_n / max(P_n)) / C_theta
-    #     #
-    #     #     # theta_LOS_ZOD = np.rad2deg(link.LOS_ZOD_GCS)
-    #     #
-    #     #     if not (link.los == LOS.LOS):
-    #     #         theta_n_ZOD = Xn_zod * theta_notch_n_ZOD + Yn_zod + theta_LOS_ZOD + link.LSP['mu_offset_ZOD']
-    #     #     else:
-    #     #         theta_n_ZOD = (Xn_zod * theta_notch_n_ZOD + Yn_zod) - (Xn_zod[0] * theta_notch_n_ZOD[0] + Yn_zod[0]
-    #     #                                                                - theta_LOS_ZOD)
-    #     #
-    #     #     alpha_m = np.array([0.0447, -0.0447, 0.1413, -0.1413, 0.2492, -0.2492, 0.3715, -0.3715, 0.5129, -0.5129,
-    #     #                         0.6797, -0.6797, 0.8844, -0.8844, 1.1481, -1.1481, 1.5195, -1.5195, 2.1551, -2.1551])
-    #     #
-    #     #     theta_n_m_ZOD = np.zeros((updated_N_cluster, link.LSP['M']))
-    #     #     for n in range(updated_N_cluster):
-    #     #         temp = theta_n_ZOD[n] + (3 / 8) * (10 ** link.LSP['mu_lg_ZSD']) * alpha_m
-    #     #         temp[(temp >= 180) & (temp <= 360)] = 360 - temp[(temp >= 180) & (temp <= 360)]
-    #     #         theta_n_m_ZOD[n] = temp
-    #     #
-    #     #     ################################################################################################################
-    #     #     # Step 8: Coupling of rays within a cluster for both azimuth and elevation
-    #     #
-    #     #     ray_mapping_AoD_AoA = np.zeros((updated_N_cluster, link.LSP['M']), dtype=int)
-    #     #     ray_mapping_ZoD_ZoA = np.zeros((updated_N_cluster, link.LSP['M']), dtype=int)
-    #     #     ray_mapping_AoD_ZoA = np.zeros((updated_N_cluster, link.LSP['M']), dtype=int)
-    #     #     for n in range(updated_N_cluster):
-    #     #         ray_mapping_AoD_AoA[n] = np.random.permutation(link.LSP['M']).astype(int)
-    #     #         ray_mapping_ZoD_ZoA[n] = np.random.permutation(link.LSP['M']).astype(int)
-    #     #         ray_mapping_AoD_ZoA[n] = np.random.permutation(link.LSP['M']).astype(int)
-    #     #
-    #     #     ################################################################################################################
-    #     #     # Step 9: Generate the cross polarization power ratios
-    #     #     Xnm = np.random.normal(loc=link.LSP['mu_XPR'], scale=link.LSP['sigma_xpr'],
-    #     #                            size=(updated_N_cluster, link.LSP['M']))
-    #     #     Knm = np.power(10, Xnm / 10)
-    #     #
-    #     #     ############################################################################################################
-    #
-    #     #     # Compute LOS/NLOS gain using Ricean Factor
-    #     #     if link.los == LOS.LOS:
-    #     #         gain_LOS = np.sqrt(K_R_linear / (K_R_linear + 1))
-    #     #         gain_NLOS = np.sqrt(1 / (K_R_linear + 1))
-    #     #     else:
-    #     #         gain_NLOS = 1
-    #     #     ################################################################################################################
-    #     #     for sectors in sector_ids:
-    #     #         SectorUeLink = (sectors, ue_id)
-    #     #
-    #     #         ################################################################################################################
-    #     #         # Step 10: Coefficient generation - Draw initial random phases
-    #     #         Phi_nm = np.random.uniform(-np.pi, -np.pi, size=(updated_N_cluster, link.LSP['M'], 2, 2))
-    #     #         # Phi theta-theta: Phi_nm[n,m,0,0]
-    #     #         # Phi theta-phi: Phi_nm[n,m,0,1]
-    #     #         # Phi phi-theta: Phi_nm[n,m,1,0]
-    #     #         # Phi phi-phi: Phi_nm[n,m,1,1]
-    #     pass
-    #     #         ################################################################################################################
-    #     #         # Step 11: Coefficient generation - Generate channel coefficients for each cluster n and each receiver and
-    #     #         # transmitter element pair u, s.
-    #     #         bs_sector_id = [x for x, s in enumerate(self.BSs[bs_id].sectors) if s.ID == sectors][0]
-    #     #
-    #     #         n_U = ue.number_of_antennas
-    #     #         n_S = bs.sector[bs_sector_id].number_of_antennas
-    #     #         channel = Channel(Nr=n_U, Nt=n_S)
-    #     #
-    #     #         lambda_0 = light_speed / (bs.sector[bs_sector_id].frequency_ghz * 1E9)
-    #     #
-    #     #
-    #     #         d_rx = bs.sector[0].antenna_panels[0].array_location_vector
-    #     #         d_tx = bs.sector[0].antenna_panels[0].array_location_vector
-    #     #
-    #     #         if link.los == LOS.LOS:
-    #     #             HLOS = np.zeros((n_U, n_S), dtype=complex)
-    #     #             n = 0
-    #     #             PolM = np.array([[1, 0],
-    #     #                              [0, 1]])
-    #     #
-    #     #             r_rx_mn = np.array([np.sin(np.deg2rad(theta_LOS_ZOA)) * np.cos(np.deg2rad(phi_LOS_AOA)),
-    #     #                                 np.sin(np.deg2rad(theta_LOS_ZOA)) * np.sin(np.deg2rad(phi_LOS_AOA)),
-    #     #                                 np.cos(np.deg2rad(theta_LOS_ZOA))]).T
-    #     #             r_tx_mn = np.array([np.sin(np.deg2rad(theta_LOS_ZOD)) * np.cos(np.deg2rad(phi_LOS_AOD)),
-    #     #                                 np.sin(np.deg2rad(theta_LOS_ZOD)) * np.sin(np.deg2rad(phi_LOS_AOD)),
-    #     #                                 np.cos(np.deg2rad(theta_LOS_ZOD))]).T
-    #     #             r_rx_vel = ue.velocity_ms * np.array(
-    #     #                 [np.sin(np.deg2rad(ue.mobility_direction_theta)) * np.cos(np.deg2rad(ue.mobility_direction_phi)),
-    #     #                  np.sin(np.deg2rad(ue.mobility_direction_theta)) * np.sin(np.deg2rad(ue.mobility_direction_phi)),
-    #     #                  np.cos(np.deg2rad(ue.mobility_direction_theta))]).T
-    #     #
-    #     #             Frx_u = ue.antenna_panels[0].vector_field_transformation_from_gcs(theta_LOS_ZOA, phi_LOS_AOA)
-    #     #             Ftx_s = bs.sector[0].antenna_panels[0].vector_field_transformation_from_gcs(theta_LOS_ZOD, phi_LOS_AOD)
-    #     #
-    #     #             for u in range(n_U):
-    #     #                 for s in range(n_S):
-    #     #                     exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
-    #     #                     exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-    #     #                     exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-    #     #                     HLOS[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
-    #     #             channel.add_cluster(H=gain_LOS * HLOS, tau=cluster_delay[n])
-    #     #
-    #     #         # Todo: Need to think of how to make this more efficient (perform some vector operation to avoid so many fors:
-    #     #         # HNLOS = np.zeros((n_U, n_S))
-    #     #         for n in range(2, updated_N_cluster):
-    #     #             H_NLOS_temp = np.zeros((n_U, n_S), dtype=complex)
-    #     #
-    #     #             for m in range(link.LSP['M']):
-    #     #                 PolM = np.array(
-    #     #                     [[np.exp(1j * Phi_nm[n, m, 0, 0]), np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 0, 1])],
-    #     #                      [np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 1, 0]), np.exp(1j * Phi_nm[n, m, 1, 0])]])
-    #     #                 r_rx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.cos(np.deg2rad(phi_n_m_AOA[n, m])),
-    #     #                                     np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.sin(np.deg2rad(phi_n_m_AOA[n, m])),
-    #     #                                     np.cos(np.deg2rad(theta_n_m_ZOA[n, m]))]).T
-    #     #                 r_tx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.cos(np.deg2rad(phi_n_m_AOD[n, m])),
-    #     #                                     np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.sin(np.deg2rad(phi_n_m_AOD[n, m])),
-    #     #                                     np.cos(np.deg2rad(theta_n_m_ZOD[n, m]))]).T
-    #     #                 r_rx_vel = ue.velocity_ms * np.array(
-    #     #                     [np.sin(np.deg2rad(ue.mobility_direction_theta)) * np.cos(np.deg2rad(ue.mobility_direction_phi)),
-    #     #                      np.sin(np.deg2rad(ue.mobility_direction_theta)) * np.sin(np.deg2rad(ue.mobility_direction_phi)),
-    #     #                      np.cos(np.deg2rad(ue.mobility_direction_theta))]).T
-    #     #
-    #     #                 Frx_u = ue.antenna_panels[0].vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
-    #     #                                                                                   phi_n_m_AOA[n, m])
-    #     #                 Ftx_s = bs.sector[0].antenna_panels[0].vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
-    #     #                                                                                             phi_n_m_AOD[n, m])
-    #     #
-    #     #                 for u in range(n_U):
-    #     #                     for s in range(n_S):
-    #     #                         exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
-    #     #                         exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-    #     #                         exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-    #     #                         H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
-    #     #
-    #     #             H_NLOS_temp = np.sqrt(P_n[n] / link.LSP['M']) * H_NLOS_temp
-    #     #             channel.add_cluster(H=H_NLOS_temp, tau=cluster_delay[n])
-    #     #
-    #     #         if link.los == LOS.LOS:
-    #     #             start_subcluster = 1
-    #     #         else:
-    #     #             start_subcluster = 0
-    #     #
-    #     #
-    #     #         subcluster_mapping = {0: [1, 2, 3, 4, 5, 6, 7, 8, 19, 20],
-    #     #                               1: [9, 10, 11, 12, 17, 18],
-    #     #                               2: [13, 14, 15, 16]}
-    #     #         delay_offset = np.array([0, 1.28 * link.LSP['c_DS'], 2.56 * link.LSP['c_DS']])
-    #     #         for n in [nn for nn in range(start_subcluster, 2) if nn <= (updated_N_cluster - 1)]:
-    #     #             H_NLOS_temp = np.zeros((n_U, n_S), dtype=complex)
-    #     #             for sub_cluster in range(3):
-    #     #                 # Make sure it won't go over the existing number of rays
-    #     #                 for m in [x for x in subcluster_mapping[sub_cluster] if x <= (link.LSP['M'] - 1)]:
-    #     #                     PolM = np.array(
-    #     #                         [[np.exp(1j * Phi_nm[n, m, 0, 0]), np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 0, 1])],
-    #     #                          [np.sqrt(1 / Knm[n, m]) * np.exp(1j * Phi_nm[n, m, 1, 0]), np.exp(1j * Phi_nm[n, m, 1, 0])]])
-    #     #
-    #     #                     r_rx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.cos(np.deg2rad(phi_n_m_AOA[n, m])),
-    #     #                                         np.sin(np.deg2rad(theta_n_m_ZOA[n, m])) * np.sin(np.deg2rad(phi_n_m_AOA[n, m])),
-    #     #                                         np.cos(np.deg2rad(theta_n_m_ZOA[n, m]))]).T
-    #     #
-    #     #                     r_tx_mn = np.array([np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.cos(np.deg2rad(phi_n_m_AOD[n, m])),
-    #     #                                         np.sin(np.deg2rad(theta_n_m_ZOD[n, m])) * np.sin(np.deg2rad(phi_n_m_AOD[n, m])),
-    #     #                                         np.cos(np.deg2rad(theta_n_m_ZOD[n, m]))]).T
-    #     #
-    #     #                     r_rx_vel = ue.velocity_ms * np.array(
-    #     #                         [np.sin(np.deg2rad(ue.mobility_direction_theta)) * np.cos(
-    #     #                             np.deg2rad(ue.mobility_direction_phi)),
-    #     #                          np.sin(np.deg2rad(ue.mobility_direction_theta)) * np.sin(
-    #     #                              np.deg2rad(ue.mobility_direction_phi)),
-    #     #                          np.cos(np.deg2rad(ue.mobility_direction_theta))]).T
-    #     #
-    #     #                     Frx_u = ue.antenna_panels[0].vector_field_transformation_from_gcs(theta_n_m_ZOA[n, m],
-    #     #                                                                                       phi_n_m_AOA[n, m])
-    #     #                     Ftx_s = bs.sector[0].antenna_panels[0].vector_field_transformation_from_gcs(theta_n_m_ZOD[n, m],
-    #     #                                                                                                 phi_n_m_AOD[n, m])
-    #     #
-    #     #                     for u in range(n_U):
-    #     #                         for s in range(n_S):
-    #     #                             exp_rx = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, d_rx[u]) / lambda_0)
-    #     #                             exp_tx = np.exp(1j * 2 * np.pi * np.dot(r_tx_mn, d_tx[s]) / lambda_0)
-    #     #                             exp_vel = np.exp(1j * 2 * np.pi * np.dot(r_rx_mn, r_rx_vel) / lambda_0)
-    #     #                             H_NLOS_temp[u, s] += np.dot(Frx_u.T, np.dot(PolM, Ftx_s)) * exp_rx * exp_tx * exp_vel
-    #     #
-    #     #                 H_NLOS_temp = np.sqrt(P_n[n] / link.LSP['M']) * H_NLOS_temp
-    #     #                 channel.add_cluster(H=gain_NLOS * H_NLOS_temp, tau=cluster_delay[n] + 1E-9 * delay_offset[sub_cluster])
-    #     #
-    #     #         ################################################################################################################
-    #     #         # Step 12: Apply pathloss and shadowing for the channel coefficients.
-    #     #         # Todo: Pathloss needs update to compute per frequency
-    #     #
-    #     #         self._SectorUeLink_container[SectorUeLink].Channel = channel
-    #     #
-    #     #     return 0
 
     def computeRSRP(self):
         """
@@ -4452,7 +3398,7 @@ class CoordinateSystem(object):
         return cls._inverse_rotation(alpha=alpha, beta=beta, gamma=gamma, point=point)
 
     @classmethod
-    def GCS2LCS_angle(cls, alpha, beta, gamma, theta, phi):
+    def GCS2LCS_angle(cls, alpha:float, beta:float, gamma:float, theta:float, phi:float):
         rho_unit = np.array([np.sin(theta)*np.cos(phi), np.sin(theta)*np.sin(phi), np.cos(theta)]).T
         z_i = np.array([0, 0, 1]).T
         theta_prime = np.arccos(
@@ -4513,7 +3459,7 @@ class CoordinateSystem(object):
         return np.matmul(Rz, np.matmul(Ry, Rx))
 
     @staticmethod
-    def _inverse_rotation(alpha, beta, gamma, point):
+    def _inverse_rotation(alpha:float, beta:float, gamma:float, point:float):
         Rz = np.array([[np.cos(alpha), -np.sin(alpha), 0],
                        [np.sin(alpha), np.cos(alpha), 0],
                        [0, 0, 1]])
