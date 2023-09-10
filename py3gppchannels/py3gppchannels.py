@@ -22,7 +22,7 @@ subcluster_mapping = {0: [1, 2, 3, 4, 5, 6, 7, 8, 19, 20],
                       1: [9, 10, 11, 12, 17, 18],
                       2: [13, 14, 15, 16]}
 
-COMPUTE_ALL_FREQUENCIES = False
+COMPUTE_ALL_FREQUENCIES = True
 
 
 class Singleton(type):
@@ -160,13 +160,11 @@ class ChannelBands(metaclass=Singleton):
 
         cls._frequency_list = list()
         cls.channel_bands = []
-        fc_start = cls.center_frequency_ghz \
-                   - ((cls.channel_bandwidth_mhz * 0.001 * cls.number_of_channels) / 2) \
-                   + (cls.channel_bandwidth_mhz * 0.001 / 2)
+        fc_start = cls.center_frequency_ghz - ((cls.channel_bandwidth_mhz * 0.001 * cls.number_of_channels) / 2) + (
+                    cls.channel_bandwidth_mhz * 0.001 / 2)
 
-        fc_end = cls.center_frequency_ghz \
-                 + ((cls.channel_bandwidth_mhz * 0.001 * cls.number_of_channels) / 2) \
-                 - (cls.channel_bandwidth_mhz * 0.001 / 2)
+        fc_end = cls.center_frequency_ghz + ((cls.channel_bandwidth_mhz * 0.001 * cls.number_of_channels) / 2) - (
+                cls.channel_bandwidth_mhz * 0.001 / 2)
 
         fc_list = np.linspace(start=fc_start, stop=fc_end, num=cls.number_of_channels)
         for n in range(cls.number_of_channels):
@@ -184,9 +182,13 @@ class ChannelBands(metaclass=Singleton):
 
 class AntennaElement:
 
-    def __init__(self, antenna_model='Model-2', radiation_pattern_model='3GPP'):
-        self.antenna_model = antenna_model
+    def __init__(self, polarized_antenna_model='Model-2', radiation_pattern_model='3GPP'):
+        self.polarized_antenna_model = polarized_antenna_model
         self.radiation_pattern_model = radiation_pattern_model
+
+        # Coordinate System
+        self.coordinate_system = CoordinateSystem
+
 
     def radiation_power_pattern(self, theta_lcs, phi_lcs):
         """
@@ -203,49 +205,64 @@ class AntennaElement:
 
         # TODO: How does the "Maximum directional gain" come into play?
 
-    def field_pattern_vertical(self, theta_lcs, phi_lcs, zeta):
-        """
-        :param phi_lcs: azimuth angle in LCS
-        :param theta_lcs: elevation angle in LCS
-        :param zeta: polarization slant angle
-        """
-        A_lcs_linear = 10 ** (self.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
-        return np.sqrt(A_lcs_linear) * np.cos(zeta)
+    # def field_pattern_vertical(self, theta_lcs, phi_lcs, zeta):
+    #     """
+    #     :param phi_lcs: azimuth angle in LCS
+    #     :param theta_lcs: elevation angle in LCS
+    #     :param zeta: polarization slant angle
+    #     """
+    #     A_lcs_linear = 10 ** (self.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+    #     return np.sqrt(A_lcs_linear) * np.cos(zeta)
+    #
+    # def field_pattern_horizontal(self, theta_lcs, phi_lcs, zeta):
+    #     """
+    #     :param phi_lcs: azimuth angle in LCS
+    #     :param theta_lcs: elevation angle in LCS
+    #     :param zeta: polarization slant angle
+    #     """
+    #     A_lcs_linear = 10 ** (self.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+    #     return np.sqrt(A_lcs_linear) * np.sin(zeta)
 
-    def field_pattern_horizontal(self, theta_lcs, phi_lcs, zeta):
-        """
-        :param phi_lcs: azimuth angle in LCS
-        :param theta_lcs: elevation angle in LCS
-        :param zeta: polarization slant angle
-        """
-        A_lcs_linear = 10 ** (self.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
-        return np.sqrt(A_lcs_linear) * np.sin(zeta)
-
-    def field_pattern_vector(self, theta_lcs, phi_lcs, zeta):
-        """
-        :param phi_lcs: azimuth angle in LCS
-        :param theta_lcs: elevation angle in LCS
-        :param zeta: polarization slant angle
-        """
-        A_lcs_linear = 10 ** (self.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
-        return np.array([np.sqrt(A_lcs_linear) * np.cos(zeta), np.sqrt(A_lcs_linear) * np.sin(zeta)]).T
+    # def field_pattern_vector(self, theta_lcs, phi_lcs, zeta):
+    #     """
+    #     :param phi_lcs: azimuth angle in LCS
+    #     :param theta_lcs: elevation angle in LCS
+    #     :param zeta: polarization slant angle
+    #     """
+    #     A_lcs_linear = 10 ** (self.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+    #     return np.array([np.sqrt(A_lcs_linear) * np.cos(zeta), np.sqrt(A_lcs_linear) * np.sin(zeta)]).T
 
 
 class AntennaPanel:
-    _default_n_panel_col = 1
-    _default_n_panel_row = 1
-    _default_panel_v_spacing = 2
-    _default_panel_h_spacing = 2
-    _default_n_antenna_col = 1
+    _default_fc = ChannelBands().center_frequency_ghz
+    _default_lambda = light_speed / _default_fc
+
+    # Antenna array
     _default_n_antenna_row = 1
-    _default_antenna_v_spacing = 0.5
-    _default_antenna_h_spacing = 0.5
+    _default_n_antenna_col = 1
+    _default_antenna_v_spacing = 0.5 * _default_lambda
+    _default_antenna_h_spacing = 0.5 * _default_lambda
+
+    # Antenna pannel
+    _default_n_panel_row = 1
+    _default_n_panel_col = 1
+    _default_panel_v_spacing = _default_n_antenna_row * _default_antenna_v_spacing
+    _default_panel_h_spacing = _default_n_antenna_col * _default_antenna_h_spacing
+
     _default_polarization = 2
-    _default_polarization_slant = (-45.0, 45.0)
+    _default_polarization_slant_linear = 0
+    _default_polarization_slant_crosspol = (-45.0, 45.0)
     _default_radiation_pattern_model = '3GPP'
     _default_bearing = 0.0
     _default_downtilt = 0.0
     _default_slant = 0.0
+
+    _default_virtualization_model = 'FC'    # FC: Fully connected
+                                            # PC: Partially connected
+
+    _default_number_of_txru = 1
+
+    # Todo: need to validate configuration based on 36.897 Table 5.2.2-1
 
     def __init__(self, n_panel_col: int = None, n_panel_row: int = None,
                  panel_v_spacing: float = None, panel_h_spacing: float = None,
@@ -347,16 +364,29 @@ class AntennaPanel:
             if polarization in [1, 2]:
                 self.polarization = polarization
             else:
-                raise 'Invalid polarization: polarization should be either 1 or 2'
+                raise 'Invalid polarization: polarization should be either 1 (linear) or 2 (crosspol)'
 
         if polarization_slant is None:
-            self.polarization_slant = AntennaPanel._default_polarization_slant
-        else:
-            if polarization_slant in [(-45, 45), (0, 90)]:
-                self.polarization_slant = polarization_slant
+            if self.polarization == 1:
+                self.polarization_slant = AntennaPanel._default_polarization_slant_linear
             else:
-                raise 'Invalid polarization slant: ' \
-                      'polarization slant should be either [-45,45] (for eNBs) or [0, 90] for UEs'
+                self.polarization_slant = AntennaPanel._default_polarization_slant_crosspol
+        else:
+            if self.polarization == 1:
+                if isinstance(self.polarization, int) or isinstance(self.polarization, float):
+                    self.polarization_slant = polarization_slant
+                else:
+                    raise 'Invalid polarization slant: should be an int or float for single-polarized antennas.'
+
+            elif self.polarization == 2:
+                if polarization_slant in [(-45, 45), (0, 90)]:
+                    self.polarization_slant = polarization_slant
+                else:
+                    raise 'Invalid polarization slant: for cross polarized antennas, ' \
+                          'polarization slant should be either (-45,45) for eNBs or (0, 90) for UEs'
+
+            else:
+                raise 'Invalid polarization: polarization should be either 1 (linear) or 2 (crosspol)'
 
         # ##############################################################################################################
         # Antenna Element
@@ -380,23 +410,69 @@ class AntennaPanel:
         self.coordinate_system = CoordinateSystem
 
     def vector_field_transformation_from_gcs(self, theta_gcs, phi_gcs):
+        # ##############################################################################################################
+        # Transform from GCS to LCS
+        # ##############################################################################################################
+        # Get Antenna Panel orientation
         alpha = np.deg2rad(self.bearing_angle)
         beta = np.deg2rad(self.downtilt_angle)
         gamma = np.deg2rad(self.slant)
 
+        # Apply GCS to LCS transformation (get results from 7.1-7 and 7.1-8)
         theta_lcs, phi_lcs = self.coordinate_system.GCS2LCS_angle(alpha=alpha, beta=beta, gamma=gamma,
                                                                   theta=theta_gcs, phi=phi_gcs)
 
+        # ##############################################################################################################
+        # Compute the vector field
+        # ##############################################################################################################
+        # Initialize vector field container:
+        F = np.zeros((2, 1, self.polarization))
+
+        # Get the vector field transformation matrix (transformation matrix in 7.1-9 from 38.901)
         vector_field_transformation_matrix = self.coordinate_system.polarized_field_component_transformation_matrix(
             alpha=alpha, beta=beta, gamma=gamma,
             theta_lcs=theta_lcs, phi_lcs=phi_lcs,
             theta_gcs=theta_gcs, phi_gcs=phi_gcs)
 
-        vector_field_gcs = np.matmul(vector_field_transformation_matrix,
-                                     self.antenna_element.field_pattern_vector(theta_lcs=theta_lcs, phi_lcs=phi_lcs,
-                                                                               zeta=0))
+        # Get the polarized vector field (selects the vector field computation according to the polarization model
+        for pol in range(self.polarization):
+            zeta = self.polarization_slant[pol]
+            if self.antenna_element.polarized_antenna_model == 'Model-2':
+                F_prime = self._panel_field_pattern_vector_model_2(theta_lcs=theta_lcs, phi_lcs=phi_lcs, zeta=zeta)
+            elif self.antenna_element.polarized_antenna_model == 'Model-1':
+                F_prime = self._panel_field_pattern_vector_model_1(theta_lcs=theta_lcs, phi_lcs=phi_lcs, zeta=zeta)
+            else:
+                raise "Invalid polarized antenna model"
 
-        return vector_field_gcs
+            F[:, :, pol] = np.matmul(vector_field_transformation_matrix, F_prime).reshape((2, 1))
+
+        return F
+
+    def _panel_field_pattern_vector_model_2(self, theta_lcs, phi_lcs, zeta):
+        # Implements Model-2  (eq 7.3-4 and 7.3-5 from 38.901)
+        A_lcs_linear = 10 ** (self.antenna_element.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+        return np.array([np.sqrt(A_lcs_linear) * np.cos(zeta), np.sqrt(A_lcs_linear) * np.sin(zeta)]).T
+
+    def _panel_field_pattern_vector_model_1(self, theta_lcs, phi_lcs, zeta):
+        # Implements Model-1  (eq 7.3-3 from 38.901)
+        A_lcs_linear = 10 ** (self.antenna_element.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+
+        sin_zeta = np.sin(zeta)
+        cos_zeta = np.cos(zeta)
+        sin_theta = np.sin(theta_lcs)
+        cos_theta = np.cos(theta_lcs)
+        sin_phi = np.sin(phi_lcs)
+        cos_phi = np.cos(phi_lcs)
+
+        den = np.sqrt(1 - (cos_zeta * cos_theta - sin_zeta * sin_phi * sin_theta) ** 2)
+        cos_Psi = (cos_zeta * sin_theta + sin_zeta * sin_phi * sin_theta) / den
+        sin_Psi = sin_zeta * cos_phi / den
+
+        M = np.array([[cos_Psi, -sin_Psi], [sin_Psi, cos_Psi]])
+        F_double_prime = np.array([np.sqrt(A_lcs_linear), np.sqrt(A_lcs_linear)]).T
+        F_single_prime = np.matmul(M, F_double_prime)
+
+        return F_single_prime
 
     @property
     def array_location_tensor(self):
@@ -432,16 +508,45 @@ class AntennaPanel:
             self.n_panel_row * self.n_antenna_row * self.n_panel_col * self.n_antenna_col, 3))
         return self._array_location_vector
 
-    def panel_field_pattern_vector(self, theta_gcs, phi_gcs, zeta):
+    def panel_field_pattern_vector_model_2(self, theta_gcs, phi_gcs, zeta):
+        # Implements Model-2  (eq 7.3-4 and 7.3-5 from 38.901)
         theta_lcs, phi_lcs = CoordinateSystem.GCS2LCS_angle(alpha=np.deg2rad(self.bearing_angle),
                                                             beta=np.deg2rad(self.downtilt_angle),
                                                             gamma=np.deg2rad(self.slant),
                                                             theta=theta_gcs,
                                                             phi=phi_gcs)
 
-        field_pattern_vector_lcs = self.antenna_element.field_pattern_vector(theta_lcs, phi_lcs, zeta)
+        A_lcs_linear = 10 ** (self.antenna_element.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+        return np.array([np.sqrt(A_lcs_linear) * np.cos(zeta), np.sqrt(A_lcs_linear) * np.sin(zeta)]).T
 
-        return field_pattern_vector_lcs
+    def panel_field_pattern_vector_model_1(self, theta_gcs, phi_gcs, zeta):
+        # Implements Model-1  (eq 7.3-3 from 38.901)
+        theta_lcs, phi_lcs = CoordinateSystem.GCS2LCS_angle(alpha=np.deg2rad(self.bearing_angle),
+                                                            beta=np.deg2rad(self.downtilt_angle),
+                                                            gamma=np.deg2rad(self.slant),
+                                                            theta=theta_gcs,
+                                                            phi=phi_gcs)
+
+        A_lcs_linear = 10 ** (self.antenna_element.radiation_power_pattern(theta_lcs, phi_lcs) / 10)
+
+        sin_zeta = np.sin(zeta)
+        cos_zeta = np.cos(zeta)
+        sin_theta = np.sin(theta_lcs)
+        cos_theta = np.cos(theta_lcs)
+        sin_phi = np.sin(phi_lcs)
+        cos_phi = np.cos(phi_lcs)
+
+        den = np.sqrt(1 - (cos_zeta * cos_theta - sin_zeta * sin_phi * sin_theta) ** 2)
+        cos_Psi = (cos_zeta * sin_theta + sin_zeta * sin_phi * sin_theta) / den
+        sin_Psi = sin_zeta * cos_phi / den
+
+        M = np.array([[cos_Psi, -sin_Psi], [sin_Psi, cos_Psi]])
+
+        # Todo: I'm not sure if I can use F_double_prime as the sqrt of A for each component
+        F_double_prime = np.array([np.sqrt(A_lcs_linear), np.sqrt(A_lcs_linear)]).T
+        F_single_prime = np.matmul(M, F_double_prime)
+
+        return F_single_prime
 
     @staticmethod
     def set_default(n_panel_col: int = None, n_panel_row: int = None,
@@ -1172,7 +1277,7 @@ class Network:
             self.min_BS_UE_distance = 35  # meters
             self.UE_distribution = 'Uniform'
 
-            # Optional Parametes
+            # Optional Parameters
             self.avg_building_height = 5.0  # meters [5..50]
             self.average_street_width = 5.0  # meters [5..50]
 
@@ -1411,14 +1516,13 @@ class Network:
                     else:
                         # TODO: remove
                         PL_RMa_LOS = np.inf
-                        sigma_sf = 0
 
                     # Compute PL_RMa-NLOS
-                    PL_RMa_NLOS = 161.04 - 7.1 * np.log10(self.average_street_width) \
-                                  + 7.5 * np.log10(self.avg_building_height) \
-                                  - (24.37 - 3.7 * ((self.avg_building_height / bs_height) ** 2)) * np.log10(bs_height) \
-                                  + (43.42 - 3.1 * np.log10(bs_height)) * (np.log10(dist_3D) - 3) \
-                                  + 20 * np.log10(fc) - (3.2 * (np.log10(11.75 * ue_height) ** 2) - 4.97)
+                    PL_RMa_NLOS = 161.04 - 7.1 * np.log10(self.average_street_width) + 7.5 * np.log10(
+                        self.avg_building_height) - (
+                                              24.37 - 3.7 * ((self.avg_building_height / bs_height) ** 2)) * np.log10(
+                        bs_height) + (43.42 - 3.1 * np.log10(bs_height)) * (np.log10(dist_3D) - 3) + 20 * np.log10(
+                        fc) - (3.2 * (np.log10(11.75 * ue_height) ** 2) - 4.97)
 
                     pathloss = max(PL_RMa_LOS, PL_RMa_NLOS)
                     sigma_sf = 8
@@ -1458,9 +1562,6 @@ class Network:
                         pathloss = 28.0 + 40 * np.log10(dist_3D) + 20 * np.log10(fc) \
                                    - 9 * np.log10(d_bp ** 2 + (bs_height - ue_height) ** 2)
                         sigma_sf = 4.0
-                    # elif dist_2D > 5000:  # Todo: Is this valid?
-                    #     pathloss = np.inf
-                    #     sigma_sf = 4.0
                     else:
                         # TODO: remove
                         pathloss = np.inf
@@ -1478,7 +1579,6 @@ class Network:
                     else:
                         # TODO: remove
                         PL_UMa_LOS = np.inf
-                        sigma_sf = 0
 
                     # Compute PL_UMa-NLOS
                     PL_UMa_NLOS = 13.54 + 39.08 * np.log10(dist_3D) + 20 * np.log10(fc) - 0.6 * (ue_height - 1.5)
@@ -1541,17 +1641,6 @@ class Network:
                     # Optional
                     # pathloss = 32.4 + 20 * np.log10(fc) + 31.9 * np.log10(dist_3D)
                     # sigma_sf = 8.2
-
-                    # try:
-                    #     PL_UMi_NLOS = 35.3 * np.log10(dist_3D) \
-                    #                   + 22.4 + 21.3 * np.log10(fc) \
-                    #                   - 0.3 * (ue_height - 1.5)
-                    #     pathloss = max(PL_UMi_LOS, PL_UMi_NLOS)
-                    #     sigma_sf = 7.82
-                    # except:
-                    #     # Optional
-                    #     pathloss = 32.4 + 20 * np.log10(fc) + 31.9 * np.log10(dist_3D)
-                    #     sigma_sf = 8.2
 
             # Additional Pathloss terms for Indoor UEs
             if ue_location == Location.Indoor:
@@ -3264,12 +3353,10 @@ class Network:
 
         # TODO: Add support for multiple polarization
         # Get UE Polarization information
-        # PolUE = self.UEs[ue_id].antenna_panels[0].polarization
-        # PolSlantUE = self.UEs[ue_id].antenna_panels[0].polarization_slant
+        pol_ue = self.UEs[ue_id].antenna_panels[0].polarization
 
         # Get BS Polarization information
-        # PolBS = sector.antenna_panels[0].polarization
-        # PolSlantBS = sector.antenna_panels[0].polarization_slant
+        pol_bs = sector.antenna_panels[0].polarization
 
         # Initialize channel dimensions
         Nr = self.UEs[ue_id].number_of_antennas
@@ -3309,7 +3396,8 @@ class Network:
         # LOS Channel
         # ##############################################################################################################
         # Initialize LOS channel coefficients
-        h_los_u_s = np.zeros((n_U, n_S), dtype=complex)
+        # h_los_u_s = np.zeros((n_U, n_S), dtype=complex)
+        h_los_u_s = np.zeros((n_U, n_S, pol_ue, pol_bs), dtype=complex)
 
         # Todo: check if this shouldn't be the LOS delay
         los_delay = cluster_delay[0]
@@ -3344,10 +3432,20 @@ class Network:
 
             exp_dist = np.exp(- 1j * 2 * np.pi * dist_3d / lambda_0)
 
+            # for u in range(n_U):
+            #     for s in range(n_S):
+            #         h_los_u_s[u, s] = gain_LOS * np.dot(Frx_u.T, np.dot(PolM_LOS, Ftx_s)) \
+            #                           * exp_dist * exp_rx_los[u] * exp_tx_los[s] * exp_vel_los
+
             for u in range(n_U):
-                for s in range(n_S):
-                    h_los_u_s[u, s] = gain_LOS * np.dot(Frx_u.T, np.dot(PolM_LOS, Ftx_s)) \
-                                      * exp_dist * exp_rx_los[u] * exp_tx_los[s] * exp_vel_los
+                for pu in range(pol_ue):
+                    for s in range(n_S):
+                        for pb in range(pol_bs):
+                            h_los_u_s[u, s, pu, pb] = gain_LOS * np.dot(Frx_u[:, :, pu].T,
+                                                                        np.dot(PolM_LOS, Ftx_s[:, :, pb])) * \
+                                                      exp_dist * exp_rx_los[u] * exp_tx_los[s] * exp_vel_los
+
+
 
         # ##############################################################################################################
         # NLOS Channel (Strongest Paths)
@@ -3358,7 +3456,8 @@ class Network:
         else:
             n_plus_subcluster = 2 * 3 + (updated_N_cluster - 2)
 
-        h_nlos_u_s_n_m = np.zeros((n_U, n_S, n_plus_subcluster, M), dtype=complex)
+        # h_nlos_u_s_n_m = np.zeros((n_U, n_S, n_plus_subcluster, M), dtype=complex)
+        h_nlos_u_s_pu_pb_n_m = np.zeros((n_U, n_S, pol_ue, pol_bs, n_plus_subcluster, M), dtype=complex)
         nlos_delay = np.zeros(n_plus_subcluster)
 
         cluster_plus_subcluster_idx = -1
@@ -3380,12 +3479,22 @@ class Network:
                     Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(np.deg2rad(theta_n_m_ZOD[n, m]),
                                                                                       np.deg2rad(phi_n_m_AOD[n, m]))
 
-                    for u in range(n_U):
-                        for s in range(n_S):
-                            h = path_gain * np.dot(Frx_u.T, np.dot(PolM[n, m], Ftx_s)) * exp_rx[m, n, u] * \
-                                 exp_tx[m, n, s] * exp_vel[m, n]
+                    # for u in range(n_U):
+                    #     for s in range(n_S):
+                    #         h = path_gain * np.dot(Frx_u.T, np.dot(PolM[n, m], Ftx_s)) * exp_rx[m, n, u] * \
+                    #              exp_tx[m, n, s] * exp_vel[m, n]
+                    #
+                    #         h_nlos_u_s_n_m[u, s, cluster_plus_subcluster_idx, m] = h
 
-                            h_nlos_u_s_n_m[u, s, cluster_plus_subcluster_idx, m] = h
+                    for u in range(n_U):
+                        for pu in range(pol_ue):
+                            for s in range(n_S):
+                                for pb in range(pol_bs):
+                                    h = path_gain * np.dot(Frx_u[:, :, pu].T, np.dot(PolM[n, m], Ftx_s[:, :, pb])) * \
+                                        exp_rx[m, n, u] * exp_tx[m, n, s] * exp_vel[m, n]
+
+                                    h_nlos_u_s_pu_pb_n_m[u, s, pu, pb, cluster_plus_subcluster_idx, m] = h
+
 
         # ##############################################################################################################
         # NLOS Channel (Weakest Paths)
@@ -3405,17 +3514,27 @@ class Network:
                 Ftx_s = sector_antenna_panel.vector_field_transformation_from_gcs(np.deg2rad(theta_n_m_ZOD[n, m]),
                                                                                   np.deg2rad(phi_n_m_AOD[n, m]))
 
+                # for u in range(n_U):
+                #     for s in range(n_S):
+                #         h = path_gain * np.dot(Frx_u.T, np.dot(PolM[n, m], Ftx_s)) * exp_rx[m, n, u] * exp_tx[m, n, s] \
+                #             * exp_vel[m, n]
+                #         h_nlos_u_s_n_m[u, s, cluster_plus_subcluster_idx, m] = h
+
                 for u in range(n_U):
-                    for s in range(n_S):
-                        h = path_gain * np.dot(Frx_u.T, np.dot(PolM[n, m], Ftx_s)) * exp_rx[m, n, u] * exp_tx[m, n, s] \
-                            * exp_vel[m, n]
-                        h_nlos_u_s_n_m[u, s, cluster_plus_subcluster_idx, m] = h
+                    for pu in range(pol_ue):
+                        for s in range(n_S):
+                            for pb in range(pol_bs):
+                                h = path_gain * np.dot(Frx_u[:, :, pu].T, np.dot(PolM[n, m], Ftx_s[:, :, pb])) * \
+                                    exp_rx[m, n, u] * exp_tx[m, n, s] * exp_vel[m, n]
+
+                                h_nlos_u_s_pu_pb_n_m[u, s, pu, pb, cluster_plus_subcluster_idx, m] = h
 
         # TODO: Will need to change the computation of field vector to include polarization and this should double
         #       the number of elements in the channel
 
         self._SectorUeLink_container[sector_ue_link_id].channel.h_los_u_s = h_los_u_s
-        self._SectorUeLink_container[sector_ue_link_id].channel.h_nlos_u_s_n_m = h_nlos_u_s_n_m
+        # self._SectorUeLink_container[sector_ue_link_id].channel.h_nlos_u_s_n_m = h_nlos_u_s_n_m
+        self._SectorUeLink_container[sector_ue_link_id].channel.h_nlos_u_s_n_m = h_nlos_u_s_pu_pb_n_m
         self._SectorUeLink_container[sector_ue_link_id].channel.los_delay = los_delay
         self._SectorUeLink_container[sector_ue_link_id].channel.nlos_delay = nlos_delay
 
@@ -3464,25 +3583,44 @@ class Network:
 
         # TODO: Remember that the channel coefficients should be weighted by the beamforming
         #         (antenna virtualization)
-        Nu, Ns, N, M = self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m.shape
+        # Nu, Ns, N, M = self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m.shape
+        Nu, Ns, pol_ue, pol_bs, N, M = self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m.shape
 
         # w = np.zeros(Ns)
         # w[0] = 1
         w = (1/np.sqrt(Ns)) * np.ones(Ns)
         acc = 0.0
 
-        if los is LOS.LOS:
-            alpha_0_u_p = np.dot(self._SectorUeLink_container[sector_ue_key].channel.h_los_u_s, w)
-            acc += np.real(np.dot(alpha_0_u_p, alpha_0_u_p.conj()))
+        # Todo: needs review
+        # if los is LOS.LOS:
+        #     alpha_0_u_p = np.dot(self._SectorUeLink_container[sector_ue_key].channel.h_los_u_s, w)
+        #     acc += np.real(np.dot(alpha_0_u_p, alpha_0_u_p.conj()))
+        #
+        # for n in range(N):
+        #     for m in range(M):
+        #         alpha_n_m_u_p = np.dot(self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m[:, :, n, m],
+        #                                w)
+        #         acc += np.real(np.dot(alpha_n_m_u_p, alpha_n_m_u_p.conj()))
+        #
+        # self._SectorUeLink_container[sector_ue_key].RSRP = tx_power_per_RE - pathloss - shadow_fading + 10 * np.log10(
+        #     acc) - 10 * np.log10(U)
 
-        for n in range(N):
-            for m in range(M):
-                alpha_n_m_u_p = np.dot(self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m[:, :, n, m],
-                                       w)
-                acc += np.real(np.dot(alpha_n_m_u_p, alpha_n_m_u_p.conj()))
+        # Todo: needs review
+        for pu in range(pol_ue):
+            for pb in range(pol_bs):
+                if los is LOS.LOS:
+                    alpha_0_u_p = np.dot(self._SectorUeLink_container[sector_ue_key].channel.h_los_u_s[:, :, pu, pb], w)
+                    acc += np.real(np.dot(alpha_0_u_p, alpha_0_u_p.conj()))
 
-        self._SectorUeLink_container[sector_ue_key].RSRP = tx_power_per_RE - pathloss - shadow_fading + 10 * np.log10(
-            acc) - 10 * np.log10(U)
+                for n in range(N):
+                    for m in range(M):
+                        alpha_n_m_u_p = np.dot(
+                            self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m[:, :, pu, pb, n, m], w)
+                        acc += np.real(np.dot(alpha_n_m_u_p, alpha_n_m_u_p.conj()))
+
+                self._SectorUeLink_container[
+                    sector_ue_key].RSRP = tx_power_per_RE - pathloss - shadow_fading + 10 * np.log10(
+                    acc) - 10 * np.log10(U)
 
     def UE_attach(self):
         """
@@ -3554,6 +3692,34 @@ class Network:
                 self._rsrpServingCell[ue.ID] = self._SectorUeLink_container[(ue.serving_sector, ue.ID)].RSRP
 
         return self._rsrpServingCell
+
+    def phase1_calibration(self):
+        """
+        Compute the RSRP for Phase 1 Calibraton
+        :return: update Network attribute RsrpMatrix
+        """
+        test = []
+        for ue in self.UEs:
+
+            # Find links related to the ue:
+            BsUeLinks = [bs_id for (bs_id, ue_id) in self.BsUeLink_container if ue_id == ue.ID]
+            ue_links_rsrp = []
+
+            for bs_id in BsUeLinks:
+                tx_power_per_RE = self.BSs[bs_id].tx_power_dBm - 10 * np.log10(
+                    12 * self.BSs[bs_id].sectors[0].number_of_PRBs)
+                fc_key = list(self.BsUeLink_container[(bs_id, ue.ID)].lspContainer.keys())[0]
+                pathloss = self.BsUeLink_container[(bs_id, ue.ID)].lspContainer[fc_key].Pathloss
+
+                ue_links_rsrp.append(tx_power_per_RE - pathloss)
+
+            highestRSRP = np.max(ue_links_rsrp)
+
+            test.append(highestRSRP)
+
+        return np.array(test)
+
+
 
     @property
     def number_of_ue(self):
@@ -3657,7 +3823,10 @@ class CoordinateSystem(object):
 
     @classmethod
     def GCS2LCS_angle(cls, alpha: float, beta: float, gamma: float, theta: float, phi: float):
+        # rho from eq. 7.1-6 in 38.901
         rho_unit = np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)]).T
+
+        # Equivalent to eq 7.1-7 and 7.1-8:
         z_i = np.array([0, 0, 1]).T
         theta_prime = np.arccos(
             np.matmul(z_i, cls._inverse_rotation(alpha=alpha, beta=beta, gamma=gamma, point=rho_unit)))
@@ -3739,13 +3908,19 @@ class CoordinateSystem(object):
     @classmethod
     def polarized_field_component_transformation_matrix(cls, alpha, beta, gamma, theta_lcs, phi_lcs, theta_gcs,
                                                         phi_gcs):
+        # Get the spherical unit vectors for the GCS (using eq. 7.1-13 and 7.1-14 from 38.901)
         unit_gcs_theta = cls._spherical_unit_vector_theta(theta_gcs, phi_gcs)
         unit_gcs_phi = cls._spherical_unit_vector_phi(phi_gcs)
 
+        # Get the spherical unit vectors for the LCS (using eq. 7.1-13 and 7.1-14 from 38.901)
         unit_lcs_theta = cls._spherical_unit_vector_theta(theta_lcs, phi_lcs)
         unit_lcs_phi = cls._spherical_unit_vector_phi(phi_lcs)
 
+        # Compute rotation matrix
         R = cls._rotation_matrix(alpha, beta, gamma)
+
+        # Get the LCS to GCS transformation matrix (used in eq. 7.1-9 from 38.901)
+        # Note that he transformation is not performed here!
         M = np.matmul(R, np.vstack((unit_lcs_theta, unit_lcs_phi)).T)
         M = np.matmul(np.vstack((unit_gcs_theta, unit_gcs_phi)), M)
 
