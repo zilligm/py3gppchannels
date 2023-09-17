@@ -137,6 +137,7 @@ class ChannelBands(metaclass=Singleton):
     _center_frequency_ghz = 3.5
     _channel_bandwidth_mhz = 10.0
     _number_of_channels = 1
+    _frequency_list = []
 
     def __init__(cls, center_frequency_ghz: float = None, channel_bandwidth_mhz: float = None,
                  number_of_channels: int = None):
@@ -237,8 +238,8 @@ class AntennaElement:
 
 
 class AntennaPanel:
-    _default_fc = ChannelBands().center_frequency_ghz
-    _default_lambda = light_speed / _default_fc
+    _default_fc = ChannelBands().frequency_list[0]
+    _default_lambda = light_speed / (_default_fc * 1_000_000_000)
 
     # Antenna array
     _default_n_antenna_row = 1
@@ -246,7 +247,7 @@ class AntennaPanel:
     _default_antenna_v_spacing = 0.5 * _default_lambda
     _default_antenna_h_spacing = 0.5 * _default_lambda
 
-    # Antenna pannel
+    # Antenna panel
     _default_n_panel_row = 1
     _default_n_panel_col = 1
     _default_panel_v_spacing = _default_n_antenna_row * _default_antenna_v_spacing
@@ -467,7 +468,7 @@ class AntennaPanel:
         cos_phi = np.cos(phi_lcs)
 
         den = np.sqrt(1 - (cos_zeta * cos_theta - sin_zeta * sin_phi * sin_theta) ** 2)
-        cos_Psi = (cos_zeta * sin_theta + sin_zeta * sin_phi * sin_theta) / den
+        cos_Psi = (cos_zeta * sin_theta + sin_zeta * sin_phi * cos_theta) / den
         sin_Psi = sin_zeta * cos_phi / den
 
         M = np.array([[cos_Psi, -sin_Psi], [sin_Psi, cos_Psi]])
@@ -656,8 +657,29 @@ class Sector:
     _default_downtilt = 0.0
     _default_slant = 0.0
     _default_sector_width = 120.0
-    # _default_frequency_ghz = 3.5
     _default_tx_power_dBm = 30.0
+
+    # Frequency
+    _default_fc = ChannelBands().frequency_list[0]
+    _default_lambda = light_speed / (_default_fc * 1_000_000_000)
+
+    # Antenna array
+    _default_n_antenna_row = 1
+    _default_n_antenna_col = 1
+    _default_antenna_v_spacing = 0.5 * _default_lambda
+    _default_antenna_h_spacing = 0.5 * _default_lambda
+
+    # Antenna panel
+    _default_n_panel_row = 1
+    _default_n_panel_col = 1
+    _default_panel_v_spacing = _default_n_antenna_row * _default_antenna_v_spacing
+    _default_panel_h_spacing = _default_n_antenna_col * _default_antenna_h_spacing
+
+    # Polarization
+    _default_polarization = 2
+    _default_polarization_slant = (-45, 45)
+    _default_radiation_pattern_model = '3GPP'
+
 
     def __init__(self, bs_id: int,
                  bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = None,
@@ -714,9 +736,7 @@ class Sector:
         # Channel Frequency Info
         # ##############################################################################################################
         if frequency_ghz is None:
-            channel_bands = ChannelBands()
-            self.frequency_ghz = channel_bands.frequency_list[0]
-            # self.frequency_ghz = Sector._default_frequency_ghz
+            self.frequency_ghz = Sector._default_fc
         else:
             self.frequency_ghz = frequency_ghz
 
@@ -727,7 +747,18 @@ class Sector:
             self.antenna_panels = []
             self.add_antenna_panel(AntennaPanel(bearing=self.bearing_angle,
                                                 downtilt=self.downtilt_angle,
-                                                slant=self.slant, polarization_slant=(-45, 45)))
+                                                slant=self.slant,
+                                                n_panel_col=Sector._default_n_panel_col,
+                                                n_panel_row=Sector._default_n_panel_row,
+                                                panel_v_spacing=Sector._default_panel_v_spacing,
+                                                panel_h_spacing=Sector._default_panel_h_spacing,
+                                                n_antenna_col=Sector._default_n_antenna_col,
+                                                n_antenna_row=Sector._default_n_antenna_row,
+                                                antenna_v_spacing=Sector._default_antenna_v_spacing,
+                                                antenna_h_spacing=Sector._default_antenna_h_spacing,
+                                                polarization=Sector._default_polarization,
+                                                polarization_slant=Sector._default_polarization_slant,
+                                                radiation_pattern_model=Sector._default_radiation_pattern_model))
         else:
             self.antenna_panels = antenna_panels
 
@@ -756,7 +787,13 @@ class Sector:
 
     @staticmethod
     def set_default(bearing: float = None, downtilt: float = None, slant: float = None, sector_width: float = None,
-                    frequency_ghz: float = None, tx_power_dBm: float = None):
+                    frequency_ghz: float = None, tx_power_dBm: float = None,
+                    n_panel_col: int = None, n_panel_row: int = None,
+                    panel_v_spacing: float = None, panel_h_spacing: float = None,
+                    n_antenna_col: int = None, n_antenna_row: int = None,
+                    antenna_v_spacing: float = None, antenna_h_spacing: float = None,
+                    polarization: int = None, polarization_slant: tuple = None, radiation_pattern_model: str = None):
+
         """
         :param bearing: Bearing angle [degrees]
         :param downtilt: Downtilt angle [degrees]
@@ -767,22 +804,63 @@ class Sector:
         """
 
         if bearing is not None:
-            AntennaPanel._default_bearing = bearing
+            Sector._default_bearing = bearing
 
         if downtilt is not None:
-            AntennaPanel._default_downtilt = downtilt
+            Sector._default_downtilt = downtilt
 
         if slant is not None:
-            AntennaPanel._default_slant = slant
+            Sector._default_slant = slant
 
         if sector_width is not None:
-            AntennaPanel._default_sector_width = sector_width
-
-        if frequency_ghz is not None:
-            AntennaPanel._default_frequency_ghz = frequency_ghz
+            Sector._default_sector_width = sector_width
 
         if tx_power_dBm is not None:
-            AntennaPanel._default_tx_power_dBm = tx_power_dBm
+            Sector._default_tx_power_dBm = tx_power_dBm
+
+        if frequency_ghz is not None:
+            Sector._default_fc = frequency_ghz
+            Sector._default_lambda = light_speed / (frequency_ghz * 1_000_000_000)
+
+        if n_antenna_row is not None:
+            Sector._default_n_antenna_row = n_antenna_row
+
+        if n_antenna_col is not None:
+            Sector._default_n_antenna_col = n_antenna_col
+
+        if antenna_v_spacing is not None:
+            Sector._default_antenna_v_spacing = antenna_v_spacing
+
+        if antenna_h_spacing is not None:
+            Sector._default_antenna_h_spacing = antenna_h_spacing
+
+        if n_panel_row is not None:
+            Sector._default_n_panel_row = n_panel_row
+
+        if n_panel_col is not None:
+            Sector._default_n_panel_col = n_panel_col
+
+        if panel_v_spacing is not None:
+            Sector._default_panel_v_spacing = panel_v_spacing
+
+        if panel_h_spacing is not None:
+            Sector._default_panel_h_spacing = panel_h_spacing
+
+        if polarization is not None:
+            if polarization in [1, 2]:
+                Sector._default_polarization = polarization
+            else:
+                raise 'Invalid polarization: polarization slant should be either 1 or 2'
+
+        if polarization_slant is not None:
+            if polarization_slant in [(-45, 45), (0, 90)]:
+                Sector._default_polarization_slant = polarization_slant
+            else:
+                raise 'Invalid polarization slant: ' \
+                      'polarization slant should be either [-45,45] (for eNBs) or [0, 90] for UEs'
+
+        if radiation_pattern_model is not None:
+            Sector._default_radiation_pattern_model = radiation_pattern_model
 
 
 class BaseStation:
@@ -873,11 +951,30 @@ class UserEquipment:
     _default_location = Location.Outdoor
     _default_tx_power_dBm = 23.0
     _default_noise_floor = -125.0
-    _default_sector_width = 120.0
-    _default_frequency_ghz = 3.5
     _default_mobility_speed_kmh = 3.0
+    _default_radiation_pattern_model = 'Omni'
 
-    # Todo: define set function
+    # Frequency
+    _default_fc = ChannelBands().frequency_list[0]
+    _default_lambda = light_speed / (_default_fc * 1_000_000_000)
+
+    # Antenna array
+    _default_n_antenna_row = 1
+    _default_n_antenna_col = 1
+    _default_antenna_v_spacing = 0.5 * _default_lambda
+    _default_antenna_h_spacing = 0.5 * _default_lambda
+
+    # Antenna panel
+    _default_n_panel_row = 1
+    _default_n_panel_col = 1
+    _default_panel_v_spacing = _default_n_antenna_row * _default_antenna_v_spacing
+    _default_panel_h_spacing = _default_n_antenna_col * _default_antenna_h_spacing
+
+    # Polarization
+    _default_polarization = 2
+    _default_polarization_slant = (0, 90)
+
+    # Random Variables
     _default_seed = 0
     _default_random_generator = np.random.default_rng(_default_seed)
 
@@ -908,8 +1005,10 @@ class UserEquipment:
         else:
             self.height = height
 
-        self.height = height
-        self.location = location
+        if location is None:
+            self.location = UserEquipment._default_location
+        else:
+            self.location = height
 
         # ##############################################################################################################
         # Orientation
@@ -951,7 +1050,7 @@ class UserEquipment:
             self.mobility_speed_kmh = mobility_speed_kmh
 
         self.velocity_ms = self.mobility_speed_kmh * 1000 / 3600  # 3 km/h
-        self.mobility_direction_phi = UserEquipment._default_random_generator.uniform(0, 2 * np.pi)
+        self.mobility_direction_phi = UserEquipment._default_random_generator.uniform(0, 360)
         self.mobility_direction_theta = 90
 
         # ##############################################################################################################
@@ -962,6 +1061,7 @@ class UserEquipment:
         self.neighbor_cells = []
         self.noise_floor = UserEquipment._default_noise_floor  # dB
 
+
         # ##############################################################################################################
         # Antenna Panels
         # ##############################################################################################################
@@ -969,7 +1069,17 @@ class UserEquipment:
         if antenna_panels:
             self.antenna_panels = antenna_panels
         else:
-            self.add_antenna_panel(AntennaPanel(polarization_slant=(0, 90), radiation_pattern_model='Omni'))
+            self.add_antenna_panel(AntennaPanel(n_panel_col=UserEquipment._default_n_panel_col,
+                                                n_panel_row=UserEquipment._default_n_panel_row,
+                                                panel_v_spacing=UserEquipment._default_panel_v_spacing,
+                                                panel_h_spacing=UserEquipment._default_panel_h_spacing,
+                                                n_antenna_col=UserEquipment._default_n_antenna_col,
+                                                n_antenna_row=UserEquipment._default_n_antenna_row,
+                                                antenna_v_spacing=UserEquipment._default_antenna_v_spacing,
+                                                antenna_h_spacing=UserEquipment._default_antenna_h_spacing,
+                                                polarization=UserEquipment._default_polarization,
+                                                polarization_slant=UserEquipment._default_polarization_slant,
+                                                radiation_pattern_model=UserEquipment._default_radiation_pattern_model))
 
     def add_antenna_panel(self, ant_panel: AntennaPanel):
         if ant_panel.__class__ == AntennaPanel:
@@ -1000,6 +1110,85 @@ class UserEquipment:
     #         number_of_antennas += panel.n_antenna_row * panel.n_panel_row
     #     return number_of_antennas
 
+    @staticmethod
+    def set_default(height: int = None, location: Location = None,
+                    tx_power_dBm: float = None, noise_floor: float = None, mobility_speed_kmh: float = None,
+                    radiation_pattern_model: str = None, seed: int = None,
+                    n_panel_col: int = None, n_panel_row: int = None,
+                    panel_v_spacing: float = None, panel_h_spacing: float = None,
+                    n_antenna_col: int = None, n_antenna_row: int = None,
+                    antenna_v_spacing: float = None, antenna_h_spacing: float = None,
+                    polarization: int = None, polarization_slant: tuple = None, frequency_ghz: float = None):
+        """
+        """
+
+        if height is not None:
+            UserEquipment._default_height = height
+
+        if location is not None:
+            UserEquipment._default_location = location
+
+        if tx_power_dBm is not None:
+            UserEquipment._default_tx_power_dBm = tx_power_dBm
+
+        if noise_floor is not None:
+            UserEquipment._default_noise_floor = noise_floor
+
+        if mobility_speed_kmh is not None:
+            UserEquipment._default_mobility_speed_kmh = mobility_speed_kmh
+
+        if location is not None:
+            UserEquipment._default_location = location
+
+        if radiation_pattern_model is not None:
+            UserEquipment._default_radiation_pattern_model = radiation_pattern_model
+
+        if seed is not None:
+            UserEquipment._default_seed = seed
+            UserEquipment._default_random_generator = np.random.default_rng(seed)
+
+        if frequency_ghz is not None:
+            UserEquipment._default_fc = frequency_ghz
+            UserEquipment._default_lambda = light_speed / (frequency_ghz * 1_000_000_000)
+
+        if n_antenna_row is not None:
+            UserEquipment._default_n_antenna_row = n_antenna_row
+
+        if n_antenna_col is not None:
+            UserEquipment._default_n_antenna_col = n_antenna_col
+
+        if antenna_v_spacing is not None:
+            UserEquipment._default_antenna_v_spacing = antenna_v_spacing
+
+        if antenna_h_spacing is not None:
+            UserEquipment._default_antenna_h_spacing = antenna_h_spacing
+
+        if n_panel_row is not None:
+            UserEquipment._default_n_panel_row = n_panel_row
+
+        if n_panel_col is not None:
+            UserEquipment._default_n_panel_col = n_panel_col
+
+        if panel_v_spacing is not None:
+            UserEquipment._default_panel_v_spacing = panel_v_spacing
+
+        if panel_h_spacing is not None:
+            UserEquipment._default_panel_h_spacing = panel_h_spacing
+
+
+        if polarization is not None:
+            if polarization in [1, 2]:
+                UserEquipment._default_polarization = polarization
+            else:
+                raise 'Invalid polarization: polarization slant should be either 1 or 2'
+
+        if polarization_slant is not None:
+            if polarization_slant in [(-45, 45), (0, 90)]:
+                UserEquipment._default_polarization_slant = polarization_slant
+            else:
+                raise 'Invalid polarization slant: ' \
+                      'polarization slant should be either [-45,45] (for eNBs) or [0, 90] for UEs'
+
 
 class SectorUeLink:
     def __init__(self, sector: Sector, ue: UserEquipment, los: LOS, bs_sector_id: int):
@@ -1012,13 +1201,8 @@ class SectorUeLink:
         # Currently not used; # will be used to indicate that link is active - ie, sector is
         # serving sector for the ue
 
-        # Random Phases for Step 10
-        self.Phi_nm = []
-
         # Channel coefficients
         self.channel = Channel()
-        self.pathloss = np.inf
-        self.sigma_sf = 0.0
         self.RSRP = -np.inf
 
 
@@ -1106,6 +1290,8 @@ class Network:
 
         # Spectrum
         self.channel_bands = ChannelBands(center_frequency_ghz=3.5, channel_bandwidth_mhz=10, number_of_channels=2)
+        UserEquipment.set_default(frequency_ghz=self.channel_bands.frequency_list[0])
+        Sector.set_default(frequency_ghz=self.channel_bands.frequency_list[0])
 
         self._rsrp_matrix = np.array([])
         self.SINR_Matrix = np.array([])
@@ -1199,7 +1385,7 @@ class Network:
         return self._parameter_grid
 
     def add_ue(self, pos_x: float = 0, pos_y: float = 0, height: float = None,
-               location: Location = Location.UNDETERMINED,
+               location: Location = None,
                speed: float = None, tx_power_dBm: float = None):
 
         if height is None:
@@ -1714,7 +1900,11 @@ class Network:
                 pathloss = pathloss + self.random_generator_PL.normal(loc=mu, scale=sigma_p)
 
             # Compute shadow fading
-            shadow_fading = self.random_generator_PL.lognormal(sigma=sigma_sf)
+            # From Table 7.5-6 - Note 2:
+            #       The sign of the shadow fading is defined so that positive SF means more
+            #       received power at UT than predicted by the path loss model.
+            # shadow_fading = self.random_generator_PL.lognormal(sigma=sigma_sf)  # Todo: check if correct
+            shadow_fading = -np.log10(self.random_generator_PL.lognormal(sigma=sigma_sf))  # Todo: check if correct
 
         return pathloss, shadow_fading
 
@@ -3018,9 +3208,6 @@ class Network:
                 else:
                     C_phi = C_phi_NLOS
 
-                if link in [(0,28), (1,28), (2,28)]:
-                    print(f"link({link}): phi_LOS_AOA={phi_LOS_AOA}")
-
                 phi_n_m_AOA = self._cluster_aoa(los=los, C_phi=C_phi, updated_N_cluster=updated_N_cluster,
                                                 Xn_aoa=Xn_aoa, Yn_aoa=Yn_aoa, ASA=ASA, P_n=P_n, phi_LOS_AOA=phi_LOS_AOA,
                                                 M=M, c_ASA=c_ASA)
@@ -3284,7 +3471,7 @@ class Network:
         phi_LOS_AOA = self._BsUeLink_container[bs_ue_key].LOS_AOA_GCS
         phi_LOS_AOD = self._BsUeLink_container[bs_ue_key].LOS_AOD_GCS
         theta_LOS_ZOA = self._BsUeLink_container[bs_ue_key].LOS_ZOA_GCS
-        theta_LOS_ZOD = self._BsUeLink_container[bs_ue_key].LOS_ZOA_GCS
+        theta_LOS_ZOD = self._BsUeLink_container[bs_ue_key].LOS_ZOD_GCS
 
         # Get UE mobility parameters
         ue_velocity_ms = self.UEs[ue_id].velocity_ms
@@ -3335,8 +3522,6 @@ class Network:
         G[:, :, 1, 0] = np.sqrt(1 / Knm)
         PolM = np.multiply(G, np.exp(1j * Phi_nm))
 
-        if ue_id == 28:
-            print(phi_LOS_AOA)
         # ##############################################################################################################
         # LOS Channel
         # ##############################################################################################################
@@ -3383,8 +3568,6 @@ class Network:
                             h_los_u_s[u, s, pu, pb] = gain_LOS * np.dot(Frx_u[:, :, pu].T,
                                                                         np.dot(PolM_LOS, Ftx_s[:, :, pb])) * \
                                                       exp_dist * exp_rx_los[u] * exp_tx_los[s] * exp_vel_los
-
-
 
         # ##############################################################################################################
         # NLOS Channel (Strongest Paths)
@@ -3541,10 +3724,9 @@ class Network:
                             self._SectorUeLink_container[sector_ue_key].channel.h_nlos_u_s_n_m[:, :, pu, pb, n, m], w)
                         acc += np.real(np.dot(alpha_n_m_u_p, alpha_n_m_u_p.conj()))
 
-        if ue_id == 28:
-            print(f"(Sector{sector_id}) acc: {acc}")
         self._SectorUeLink_container[sector_ue_key].RSRP = tx_power_per_RE - pathloss - shadow_fading + 10 * np.log10(
             acc) - 10 * np.log10(U)
+
 
     def UE_attach(self):
         """
@@ -3562,7 +3744,7 @@ class Network:
             highestRSRP_link = SectorUeLinks[highestRSRP_idx]
 
             for sector_id in SectorUeLinks:
-                self._SectorUeLink_container[(sector_id,ue.ID)].active = False
+                self._SectorUeLink_container[(sector_id, ue.ID)].active = False
 
             if ue_links_rsrp[highestRSRP_idx] >= self.UE_attach_threshold:
                 ue.serving_sector = highestRSRP_link
